@@ -22,6 +22,9 @@ export interface MessageData {
 messageEmitter.addSerializer<Message.TOGGLE_MOVEMENT>(Message.TOGGLE_MOVEMENT);
 ```
 
+> [!CAUTION]
+> Every single message kind must implement an interface for it's data (in the example that would be the object with the `foo` and `bar` fields) as well as call `MessageEmitter.addSerializer()`. Messages will not work if you don't do this.
+
 ### Server
 ```ts
 import { Message, messageEmitter } from "shared/messaging";
