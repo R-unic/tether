@@ -1,0 +1,42 @@
+{
+  "name": "@rbxts/tether",
+  "version": "1.0.0",
+  "main": "out/init.lua",
+  "scripts": {
+    "build": "rbxtsc",
+    "watch": "rbxtsc -w",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "roblox",
+    "tether",
+    "networking",
+    "message"
+  ],
+  "repository": {
+    "url": "https://github.com/R-unic/tether.git"
+  },
+  "author": "runicly",
+  "license": "ISC",
+  "description": "A message-based networking solution for Roblox with automatic binary serialization",
+  "types": "out/index.d.ts",
+  "files": [
+    "out",
+    "!**/*.tsbuildinfo"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@rbxts/compiler-types": "^3.0.0-types.0",
+    "@rbxts/types": "^1.0.835",
+    "roblox-ts": "^3.0.0",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@flamework/core": "^1.2.3",
+    "@flamework/networking": "^1.2.3",
+    "@rbxts/flamework-binary-serializer": "^0.6.0",
+    "@rbxts/services": "^1.5.5"
+  }
+}
