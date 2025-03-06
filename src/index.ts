@@ -26,28 +26,35 @@ interface ClientEvents {
   sendUnreliableClientMessage: UnreliableMessageEvent;
 }
 
-/** @metadata macro */
-export function createMessageEmitter<MessageData>(
-  metaForEachMessage?: Modding.Many<{
-    [Kind in keyof MessageData]: Modding.Many<SerializerMetadata<MessageData[Kind]>>
-  }>
-): MessageEmitter<MessageData> | undefined {
-  if (metaForEachMessage === undefined) return;
-
-  const emitter = new MessageEmitter<MessageData>;
-  for (const [kind, meta] of pairs(metaForEachMessage)) {
-    emitter.addSerializer(kind as keyof MessageData, meta as Modding.Many<SerializerMetadata<MessageData[keyof MessageData]>>);
-  }
-}
-
-class MessageEmitter<MessageData> {
+export class MessageEmitter<MessageData> {
   private readonly clientCallbacks = new Map<keyof MessageData, ClientMessageCallback[]>;
   private readonly serverCallbacks = new Map<keyof MessageData, ServerMessageCallback[]>;
   private readonly serializers: Partial<Record<keyof MessageData, Serializer<MessageData[keyof MessageData]>>> = {};
   private readonly serverEvents!: ReturnType<typeof GlobalEvents.createServer>;
   private readonly clientEvents!: ReturnType<typeof GlobalEvents.createClient>;
 
-  public constructor() {
+  /** @metadata macro */
+  public static create<MessageData>(
+    metaForEachMessage?: Modding.Many<{
+      [Kind in keyof MessageData]: Modding.Many<SerializerMetadata<MessageData[Kind]>>
+    }>
+  ): MessageEmitter<MessageData> {
+    if (metaForEachMessage === undefined)
+      warn("[Tether]: Failed to generate serializer metadata for MessageEmitter");
+
+    const emitter = new MessageEmitter<MessageData>;
+    if (metaForEachMessage === undefined)
+      return emitter;
+
+    for (const [kind, meta] of pairs(metaForEachMessage)) {
+      print(kind, meta)
+      emitter.addSerializer(kind as keyof MessageData, meta as Modding.Many<SerializerMetadata<MessageData[keyof MessageData]>>);
+    }
+
+    return emitter;
+  }
+
+  private constructor() {
     if (RunService.IsServer())
       this.serverEvents = GlobalEvents.createServer({});
     else

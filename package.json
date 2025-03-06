@@ -1,6 +1,6 @@
 {
   "name": "@rbxts/tether",
-  "version": "1.0.3",
+  "version": "1.0.31",
   "main": "out/init.lua",
   "scripts": {
     "build": "rbxtsc",
@@ -14,7 +14,7 @@
     "message"
   ],
   "repository": {
-    "url": "https://github.com/R-unic/tether.git"
+    "url": "git+https://github.com/R-unic/tether.git"
   },
   "author": "runicly",
   "license": "ISC",
