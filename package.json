@@ -1,6 +1,6 @@
 {
   "name": "@rbxts/tether",
-  "version": "1.0.31",
+  "version": "1.0.32",
   "main": "out/init.lua",
   "scripts": {
     "build": "rbxtsc",
@@ -30,8 +30,9 @@
   "devDependencies": {
     "@rbxts/compiler-types": "^3.0.0-types.0",
     "@rbxts/types": "^1.0.835",
+    "rbxts-transformer-flamework": "latest",
     "roblox-ts": "^3.0.0",
-    "typescript": "^5.7.3"
+    "typescript": "^5.5.3"
   },
   "dependencies": {
     "@flamework/core": "^1.2.3",

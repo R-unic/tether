@@ -5,7 +5,7 @@ A message-based networking solution for Roblox with automatic binary serializati
 ```ts
 import { DataType } from "@rbxts/flamework-binary-serializer";
 
-export const messageEmitter = new MessageEmitter<Message, MessageData>;
+export const messageEmitter = MessageEmitter.create<MessageData>();
 messageEmitter.initialize();
 
 export const enum Message {
@@ -18,8 +18,6 @@ export interface MessageData {
     readonly n: DataType.u8;
   };
 }
-
-messageEmitter.addSerializer<Message.TEST>(Message.TEST);
 ```
 
 > [!CAUTION]
