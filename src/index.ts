@@ -35,15 +35,18 @@ export class MessageEmitter<MessageData> {
 
   /** @metadata macro */
   public static create<MessageData>(
-    metaForEachMessage?: Modding.Many<(MessageData extends [infer K, infer V] ? [K, SerializerMetadata<V>] : never)[]>
+    metaForEachMessage?: Modding.Many<{
+      [Kind in keyof MessageData]: Modding.Many<SerializerMetadata<MessageData[Kind]>>
+    }>
   ): MessageEmitter<MessageData> {
-    const emitter = new MessageEmitter<MessageData>;
-    if (metaForEachMessage === undefined) {
+    if (metaForEachMessage === undefined)
       warn("[Tether]: Failed to generate serializer metadata for MessageEmitter");
-      return emitter;
-    }
 
-    for (const [kind, meta] of metaForEachMessage) {
+    const emitter = new MessageEmitter<MessageData>;
+    if (metaForEachMessage === undefined)
+      return emitter;
+
+    for (const [kind, meta] of pairs(metaForEachMessage)) {
       emitter.addSerializer(kind as keyof MessageData, meta as Modding.Many<SerializerMetadata<MessageData[keyof MessageData]>>);
     }
 
@@ -137,6 +140,6 @@ export class MessageEmitter<MessageData> {
   }
 
   private getSerializer<Kind extends keyof MessageData>(message: Kind): Serializer<MessageData[Kind]> {
-    return this.serializers[message] as unknown as Serializer<MessageData[Kind]>;
+    return this.serializers[tostring(message) as Kind] as unknown as Serializer<MessageData[Kind]>;
   }
 }
