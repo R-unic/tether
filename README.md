@@ -19,7 +19,7 @@ export interface MessageData {
   };
 }
 
-messageEmitter.addSerializer<Message.TOGGLE_MOVEMENT>(Message.TOGGLE_MOVEMENT);
+messageEmitter.addSerializer<Message.TEST>(Message.TEST);
 ```
 
 > [!CAUTION]
