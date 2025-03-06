@@ -3,7 +3,7 @@ A message-based networking solution for Roblox with automatic binary serializati
 
 ### In `shared/messaging.ts`
 ```ts
-import { DataType } from "@rbxts/flamework-binary-serializer";
+import type { DataType } from "@rbxts/flamework-binary-serializer";
 
 export const messageEmitter = MessageEmitter.create<MessageData>();
 messageEmitter.initialize();
@@ -21,7 +21,7 @@ export interface MessageData {
 ```
 
 > [!CAUTION]
-> Every single message kind must implement an interface for it's data (in the example that would be the object with the `foo` and `bar` fields) as well as call `MessageEmitter.addSerializer()`. Messages will not work if you don't do this.
+> Every single message kind must implement an interface for it's data (in the example that would be the object with the `foo` and `bar` fields). Message serialization (as well as your message itself) will not work if you don't do this.
 
 ### Server
 ```ts

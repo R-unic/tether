@@ -1,6 +1,6 @@
 {
   "name": "@rbxts/tether",
-  "version": "1.0.34",
+  "version": "1.0.4",
   "main": "out/init.lua",
   "scripts": {
     "build": "rbxtsc",
