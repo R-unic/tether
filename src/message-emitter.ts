@@ -4,7 +4,7 @@ import { createBinarySerializer, type Serializer, type SerializerMetadata } from
 import { RunService } from "@rbxts/services";
 import Destroyable from "@rbxts/destroyable";
 
-import type { SerializedPacket, ClientEvents, ClientMessageCallback, ServerEvents, ServerMessageCallback } from "./structs";
+import type { SerializedPacket, ClientEvents, ClientMessageCallback, ServerEvents, ServerMessageCallback, MessageCallback } from "./structs";
 
 const GlobalEvents = Networking.createEvent<ServerEvents, ClientEvents>();
 export class MessageEmitter<MessageData> extends Destroyable {
@@ -50,27 +50,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
   /**.
    * @returns A destructor function that disconnects the callback from the message
    */
-  public onServerMessage<Kind extends keyof MessageData>(message: Kind, callback: ServerMessageCallback<MessageData[Kind]>): () => void {
-    if (!this.serverCallbacks.has(message))
-      this.serverCallbacks.set(message, new Set);
+  public on<Kind extends keyof MessageData>(message: Kind, callback: MessageCallback<MessageData[Kind]>): () => void {
+    const callbacksMap = RunService.IsServer() ? this.serverCallbacks : this.clientCallbacks;
+    if (!callbacksMap.has(message))
+      callbacksMap.set(message, new Set);
 
-    const callbacks = this.serverCallbacks.get(message)!;
-    callbacks.add(callback as ClientMessageCallback);
-    this.serverCallbacks.set(message, callbacks);
-    return () => callbacks.delete(callback as ClientMessageCallback);
-  }
-
-  /**.
-   * @returns A destructor function that disconnects the callback from the message
-   */
-  public onClientMessage<Kind extends keyof MessageData>(message: Kind, callback: ClientMessageCallback<MessageData[Kind]>): () => void {
-    if (!this.clientCallbacks.has(message))
-      this.clientCallbacks.set(message, new Set);
-
-    const callbacks = this.clientCallbacks.get(message)!;
-    callbacks.add(callback as ClientMessageCallback);
-    this.clientCallbacks.set(message, callbacks);
-    return () => callbacks.delete(callback as ClientMessageCallback);
+    const callbacks = callbacksMap.get(message)!;
+    callbacks.add(callback as MessageCallback);
+    callbacksMap.set(message, callbacks);
+    return () => callbacks.delete(callback as MessageCallback);
   }
 
   /**

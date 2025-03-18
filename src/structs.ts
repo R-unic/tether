@@ -1,5 +1,6 @@
 import type { Networking } from "@flamework/networking";
 
+export type MessageCallback<T = unknown> = ServerMessageCallback<T> | ClientMessageCallback<T>;
 export type ClientMessageCallback<T = unknown> = (data: T) => void;
 export type ServerMessageCallback<T = unknown> = (player: Player, data: T) => void;
 export type BaseMessage = number | string | symbol;

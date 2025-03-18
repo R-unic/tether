@@ -4,16 +4,16 @@ A message-based networking solution for Roblox with automatic binary serializati
 ### In `shared/messaging.ts`
 ```ts
 import type { DataType } from "@rbxts/flamework-binary-serializer";
+import { MessageEmitter } from "@rbxts/tether";
 
-export const messageEmitter = MessageEmitter.create<MessageData>();
-messageEmitter.initialize();
+export const messaging = MessageEmitter.create<MessageData>();
 
 export const enum Message {
-  TEST
+  Test
 }
 
 export interface MessageData {
-  [Message.TEST]: {
+  [Message.Test]: {
     readonly foo: string;
     readonly n: DataType.u8;
   };
@@ -25,18 +25,18 @@ export interface MessageData {
 
 ### Server
 ```ts
-import { Message, messageEmitter } from "shared/messaging";
+import { Message, messaging } from "shared/messaging";
 
-messageEmitter.onServerMessage(Message.TEST, (player, data) => {
+messaging.on(Message.TEST, (player, data) => {
   print(player, "sent data:", data);
 });
 ```
 
 ### Client
 ```ts
-import { Message, messageEmitter } from "shared/messaging";
+import { Message, messaging } from "shared/messaging";
 
-messageEmitter.emitServer(Message.TEST, {
+messaging.emitServer(Message.TEST, {
   foo: "bar",
   n: 69
 });
