@@ -1,9 +1,10 @@
 import { Modding } from "@flamework/core";
 import { Networking } from "@flamework/networking";
 import { createBinarySerializer, type Serializer, type SerializerMetadata } from "@rbxts/flamework-binary-serializer";
-import { RunService } from "@rbxts/services";
+import { Players, RunService } from "@rbxts/services";
 import Destroyable from "@rbxts/destroyable";
 
+import { DropRequest, MiddlewareProvider } from "./middleware";
 import type { SerializedPacket, ClientEvents, ClientMessageCallback, ServerEvents, ServerMessageCallback, MessageCallback } from "./structs";
 
 const GlobalEvents = Networking.createEvent<ServerEvents, ClientEvents>();
@@ -16,23 +17,28 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   /** @metadata macro */
   public static create<MessageData>(
+    middleware?: MiddlewareProvider<MessageData>,
     metaForEachMessage?: Modding.Many<{
-      [Kind in keyof MessageData]: Modding.Many<SerializerMetadata<MessageData[Kind]>>
+      [Kind in keyof MessageData]: MessageData[Kind] extends undefined ? undefined : Modding.Many<SerializerMetadata<MessageData[Kind]>>
     }>
   ): MessageEmitter<MessageData> {
-    const emitter = new MessageEmitter<MessageData>;
+    const emitter = new MessageEmitter<MessageData>(middleware);
     if (metaForEachMessage === undefined) {
       warn("[Tether]: Failed to generate serializer metadata for MessageEmitter");
       return emitter.initialize();
     }
 
-    for (const [kind, meta] of pairs(metaForEachMessage))
+    for (const [kind, meta] of pairs(metaForEachMessage)) {
+      if (meta === undefined) continue;
       emitter.addSerializer(kind as keyof MessageData, meta as Modding.Many<SerializerMetadata<MessageData[keyof MessageData]>>);
+    }
 
     return emitter.initialize();
   }
 
-  private constructor() {
+  private constructor(
+    private readonly middleware?: MiddlewareProvider<MessageData>
+  ) {
     super();
     this.janitor.Add(() => {
       this.clientCallbacks.clear();
@@ -50,7 +56,18 @@ export class MessageEmitter<MessageData> extends Destroyable {
   /**.
    * @returns A destructor function that disconnects the callback from the message
    */
-  public on<Kind extends keyof MessageData>(message: Kind, callback: MessageCallback<MessageData[Kind]>): () => void {
+  public onServerMessage<Kind extends keyof MessageData>(message: Kind, callback: ServerMessageCallback<MessageData[Kind]>): () => void {
+    return this.on(message, callback);
+  }
+
+  /**.
+   * @returns A destructor function that disconnects the callback from the message
+   */
+  public onClientMessage<Kind extends keyof MessageData>(message: Kind, callback: ClientMessageCallback<MessageData[Kind]>): () => void {
+    return this.on(message, callback);
+  }
+
+  private on<Kind extends keyof MessageData>(message: Kind, callback: MessageCallback<MessageData[Kind]>): () => void {
     const callbacksMap = RunService.IsServer() ? this.serverCallbacks : this.clientCallbacks;
     if (!callbacksMap.has(message))
       callbacksMap.set(message, new Set);
@@ -69,6 +86,12 @@ export class MessageEmitter<MessageData> extends Destroyable {
    * @param unreliable - Optional flag indicating if the message should be sent unreliably.
    */
   public emitServer<Kind extends keyof MessageData>(message: Kind, data?: MessageData[Kind], unreliable = false): void {
+    if (this.middleware !== undefined)
+      for (const middleware of this.middleware.getServer(message)) {
+        const result = middleware(data);
+        if (result === DropRequest) return;
+      }
+
     const send = unreliable
       ? this.clientEvents.sendUnreliableServerMessage
       : this.clientEvents.sendServerMessage;
@@ -85,6 +108,12 @@ export class MessageEmitter<MessageData> extends Destroyable {
    * @param unreliable - Optional flag indicating if the message should be sent unreliably.
    */
   public emitClient<Kind extends keyof MessageData>(player: Player, message: Kind, data?: MessageData[Kind], unreliable = false): void {
+    if (this.middleware !== undefined)
+      for (const middleware of this.middleware.getClient(message)) {
+        const result = middleware(player, data);
+        if (result === DropRequest) return;
+      }
+
     const send = unreliable
       ? this.serverEvents.sendUnreliableClientMessage
       : this.serverEvents.sendClientMessage;
@@ -100,7 +129,17 @@ export class MessageEmitter<MessageData> extends Destroyable {
    * @param unreliable - Optional flag indicating if the message should be sent unreliably.
    */
   public emitAllClients<Kind extends keyof MessageData>(message: Kind, data?: MessageData[Kind], unreliable = false): void {
-    const send = unreliable ? this.serverEvents.sendUnreliableClientMessage : this.serverEvents.sendClientMessage;
+    if (this.middleware !== undefined)
+      for (const middleware of this.middleware.getClient(message))
+        for (const player of Players.GetPlayers()) {
+          const result = middleware(player, data);
+          if (result === DropRequest) return;
+        }
+
+    const send = unreliable
+      ? this.serverEvents.sendUnreliableClientMessage
+      : this.serverEvents.sendClientMessage;
+
     send.broadcast(message, this.getPacket(message, data));
   }
 

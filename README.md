@@ -27,7 +27,7 @@ export interface MessageData {
 ```ts
 import { Message, messaging } from "shared/messaging";
 
-messaging.on(Message.TEST, (player, data) => {
+messaging.onServerMessage(Message.TEST, (player, data) => {
   print(player, "sent data:", data);
 });
 ```
