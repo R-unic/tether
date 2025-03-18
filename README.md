@@ -1,5 +1,7 @@
 # Tether
-A message-based networking solution for Roblox with automatic binary serialization
+A message-based networking solution for Roblox with automatic binary serialization.
+
+## Usage
 
 ### In `shared/messaging.ts`
 ```ts
@@ -40,4 +42,44 @@ messaging.emitServer(Message.TEST, {
   foo: "bar",
   n: 69
 });
+```
+
+## Middleware
+
+### Creating middleware
+```ts
+import { type Middleware, DropRequest } from "@rbxts/tether";
+
+export function rateLimit(interval: number): Middleware {
+  let lastRequest = 0;
+
+  return () => {
+    if (os.clock() - lastRequest < interval)
+      return DropRequest;
+
+    lastRequest = os.clock();
+  };
+}
+```
+
+### Using middleware
+```ts
+import type { DataType } from "@rbxts/flamework-binary-serializer";
+import { MessageEmitter, BuiltinMiddlewares } from "@rbxts/tether";
+
+export const messaging = MessageEmitter.create<MessageData>();
+messaging.middleware
+  .useUniversal(Message.Test, [BuiltinMiddlewares.rateLimit(5)])
+  .useClient(Message.Test, [BuiltinMiddlewares.validateClient()]);
+
+export const enum Message {
+  Test
+}
+
+export interface MessageData {
+  [Message.Test]: {
+    readonly foo: string;
+    readonly n: DataType.u8;
+  };
+}
 ```

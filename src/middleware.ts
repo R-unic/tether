@@ -1,21 +1,13 @@
 import type { BaseMessage } from "./structs";
 
-declare function newproxy(createMt?: boolean): symbol;
-
-function createSymbol<T extends symbol = symbol>(name: string): T {
-  const symbol = newproxy(true);
-  const mt = getmetatable(symbol as never) as Record<string, unknown>;
-
-  mt.__tostring = () => name;
-
-  return symbol as T;
-}
+declare function newproxy<T extends symbol = symbol>(): T;
 
 type DropRequestSymbol = symbol & { _skip_middleware?: undefined };
-export const DropRequest = createSymbol<DropRequestSymbol>("DropRequest");
+export const DropRequest = newproxy<DropRequestSymbol>();
 
-export type ClientMiddleware<Data = unknown> = (player: Player, data: Data | undefined) => DropRequestSymbol | void;
-export type ServerMiddleware<Data = unknown> = (data: Data | undefined) => DropRequestSymbol | void;
+export type ClientMiddleware<Data = unknown> = (player: Player, data: Readonly<Data> | undefined) => DropRequestSymbol | void;
+export type ServerMiddleware<Data = unknown> = (data: Readonly<Data> | undefined) => DropRequestSymbol | void;
+export type UniversalMiddleware = () => DropRequestSymbol | void;
 export type Middleware<Data = unknown> = ServerMiddleware<Data> & ClientMiddleware<Data>;
 
 export class MiddlewareProvider<MessageData> {
@@ -65,6 +57,16 @@ export class MiddlewareProvider<MessageData> {
       for (const middleware of middlewares as Middleware[])
         this.useServer(message, middleware);
 
+    return this;
+  }
+
+  public useUniversal<Kind extends keyof MessageData>(
+    message: Kind,
+    middlewares: UniversalMiddleware | UniversalMiddleware[],
+    order?: number
+  ): this {
+    this.useClient(message, middlewares, order);
+    this.useServer(message, middlewares, order);
     return this;
   }
 }

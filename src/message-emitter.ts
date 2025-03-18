@@ -9,6 +9,8 @@ import type { SerializedPacket, ClientEvents, ClientMessageCallback, ServerEvent
 
 const GlobalEvents = Networking.createEvent<ServerEvents, ClientEvents>();
 export class MessageEmitter<MessageData> extends Destroyable {
+  public readonly middleware = new MiddlewareProvider<MessageData>;
+
   private readonly clientCallbacks = new Map<keyof MessageData, Set<ClientMessageCallback>>;
   private readonly serverCallbacks = new Map<keyof MessageData, Set<ServerMessageCallback>>;
   private serializers: Partial<Record<keyof MessageData, Serializer<MessageData[keyof MessageData]>>> = {};
@@ -17,12 +19,11 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   /** @metadata macro */
   public static create<MessageData>(
-    middleware?: MiddlewareProvider<MessageData>,
     metaForEachMessage?: Modding.Many<{
       [Kind in keyof MessageData]: MessageData[Kind] extends undefined ? undefined : Modding.Many<SerializerMetadata<MessageData[Kind]>>
     }>
   ): MessageEmitter<MessageData> {
-    const emitter = new MessageEmitter<MessageData>(middleware);
+    const emitter = new MessageEmitter<MessageData>;
     if (metaForEachMessage === undefined) {
       warn("[Tether]: Failed to generate serializer metadata for MessageEmitter");
       return emitter.initialize();
@@ -36,9 +37,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     return emitter.initialize();
   }
 
-  private constructor(
-    private readonly middleware?: MiddlewareProvider<MessageData>
-  ) {
+  private constructor() {
     super();
     this.janitor.Add(() => {
       this.clientCallbacks.clear();
@@ -54,14 +53,14 @@ export class MessageEmitter<MessageData> extends Destroyable {
   }
 
   /**.
-   * @returns A destructor function that disconnects the callback from the message
+   * @returns A destructor function that disconnects the callback from the message.
    */
   public onServerMessage<Kind extends keyof MessageData>(message: Kind, callback: ServerMessageCallback<MessageData[Kind]>): () => void {
     return this.on(message, callback);
   }
 
   /**.
-   * @returns A destructor function that disconnects the callback from the message
+   * @returns A destructor function that disconnects the callback from the message.
    */
   public onClientMessage<Kind extends keyof MessageData>(message: Kind, callback: ClientMessageCallback<MessageData[Kind]>): () => void {
     return this.on(message, callback);
