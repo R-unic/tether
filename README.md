@@ -69,8 +69,10 @@ import { MessageEmitter, BuiltinMiddlewares } from "@rbxts/tether";
 
 export const messaging = MessageEmitter.create<MessageData>();
 messaging.middleware
-  .useUniversal(Message.Test, [BuiltinMiddlewares.rateLimit(5)])
-  .useClient(Message.Test, [BuiltinMiddlewares.validateClient()]);
+  .useUniversal(Message.Test, [BuiltinMiddlewares.rateLimit(5)]) // only allows requests every 5 seconds, drops any
+                                                                 // requests that occur within 5 seconds of each other
+  .useClient(Message.Test, [BuiltinMiddlewares.validateClient()]); // automatically validates that data sent through the remote
+                                                                   // matches the data associated with the message at runtime
 
 export const enum Message {
   Test
