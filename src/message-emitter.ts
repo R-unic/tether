@@ -47,6 +47,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
       this.clientEvents = GlobalEvents.createClient({});
   }
 
+  /**.
+   * @returns A destructor function that disconnects the callback from the message
+   */
   public onServerMessage<Kind extends keyof MessageData>(message: Kind, callback: ServerMessageCallback<MessageData[Kind]>): () => void {
     if (!this.serverCallbacks.has(message))
       this.serverCallbacks.set(message, new Set);
@@ -57,6 +60,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
     return () => callbacks.delete(callback as ClientMessageCallback);
   }
 
+  /**.
+   * @returns A destructor function that disconnects the callback from the message
+   */
   public onClientMessage<Kind extends keyof MessageData>(message: Kind, callback: ClientMessageCallback<MessageData[Kind]>): () => void {
     if (!this.clientCallbacks.has(message))
       this.clientCallbacks.set(message, new Set);
@@ -67,7 +73,14 @@ export class MessageEmitter<MessageData> extends Destroyable {
     return () => callbacks.delete(callback as ClientMessageCallback);
   }
 
-  public emitServer<Kind extends keyof MessageData>(message: Kind, data: MessageData[Kind], unreliable = false): void {
+  /**
+   * Emits a message to all connected clients.
+   *
+   * @param message - The message kind to be sent.
+   * @param data - The data associated with the message.
+   * @param unreliable - Optional flag indicating if the message should be sent unreliably.
+   */
+  public emitServer<Kind extends keyof MessageData>(message: Kind, data?: MessageData[Kind], unreliable = false): void {
     const send = unreliable
       ? this.clientEvents.sendUnreliableServerMessage
       : this.clientEvents.sendServerMessage;
@@ -75,7 +88,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
     send(message, this.getPacket(message, data));
   }
 
-  public emitClient<Kind extends keyof MessageData>(player: Player, message: Kind, data: MessageData[Kind], unreliable = false): void {
+  /**
+   * Emits a message to a specific client.
+   *
+   * @param player - The player to whom the message is sent.
+   * @param message - The message kind to be sent.
+   * @param data - The data associated with the message.
+   * @param unreliable - Optional flag indicating if the message should be sent unreliably.
+   */
+  public emitClient<Kind extends keyof MessageData>(player: Player, message: Kind, data?: MessageData[Kind], unreliable = false): void {
     const send = unreliable
       ? this.serverEvents.sendUnreliableClientMessage
       : this.serverEvents.sendClientMessage;
@@ -83,29 +104,36 @@ export class MessageEmitter<MessageData> extends Destroyable {
     send(player, message, this.getPacket(message, data));
   }
 
-  public emitAllClients<Kind extends keyof MessageData>(message: Kind, data: MessageData[Kind], unreliable = false): void {
+  /**
+   * Emits a message to all connected clients.
+   *
+   * @param message - The message kind to be sent.
+   * @param data - The data associated with the message.
+   * @param unreliable - Optional flag indicating if the message should be sent unreliably.
+   */
+  public emitAllClients<Kind extends keyof MessageData>(message: Kind, data?: MessageData[Kind], unreliable = false): void {
     const send = unreliable ? this.serverEvents.sendUnreliableClientMessage : this.serverEvents.sendClientMessage;
     send.broadcast(message, this.getPacket(message, data));
   }
 
   private initialize(): this {
     if (RunService.IsClient())
-      this.janitor.Add(this.clientEvents.sendClientMessage.connect((sentMessage, { buffer, blobs }) => {
+      this.janitor.Add(this.clientEvents.sendClientMessage.connect((sentMessage, packet) => {
         const messageCallbacks = this.clientCallbacks.get(sentMessage as keyof MessageData) ?? new Set;
         if (messageCallbacks.size() === 0) return;
 
         const serializer = this.getSerializer(sentMessage as keyof MessageData);
-        const data = serializer.deserialize(buffer, blobs);
+        const data = packet !== undefined ? serializer.deserialize(packet.buffer, packet.blobs) : undefined;
         for (const callback of messageCallbacks)
           callback(data);
       }));
     else
-      this.janitor.Add(this.serverEvents.sendServerMessage.connect((player, sentMessage, { buffer, blobs }) => {
+      this.janitor.Add(this.serverEvents.sendServerMessage.connect((player, sentMessage, packet) => {
         const messageCallbacks = this.serverCallbacks.get(sentMessage as keyof MessageData) ?? new Set;
         if (messageCallbacks.size() === 0) return;
 
         const serializer = this.getSerializer(sentMessage as keyof MessageData);
-        const data = serializer.deserialize(buffer, blobs);
+        const data = packet !== undefined ? serializer.deserialize(packet.buffer, packet.blobs) : undefined;
         for (const callback of messageCallbacks)
           callback(player, data);
       }));
@@ -113,9 +141,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
     return this;
   }
 
-  private getPacket<Kind extends keyof MessageData>(message: Kind, data: MessageData[Kind], unreliable = false): SerializedPacket {
+  private getPacket<Kind extends keyof MessageData>(message: Kind, data?: MessageData[Kind]): SerializedPacket | undefined {
     const serializer = this.getSerializer(message);
-    return serializer.serialize(data);
+    return data === undefined ? undefined : serializer.serialize(data);
   }
 
   /** @metadata macro */

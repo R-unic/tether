@@ -9,7 +9,7 @@ export interface SerializedPacket {
   readonly blobs: defined[];
 }
 
-export type MessageEvent = (kind: BaseMessage, packet: SerializedPacket) => void;
+export type MessageEvent = (kind: BaseMessage, packet?: SerializedPacket) => void;
 export type UnreliableMessageEvent = Networking.Unreliable<MessageEvent>;
 
 export interface ServerEvents {
