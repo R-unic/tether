@@ -25,7 +25,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
   ): MessageEmitter<MessageData> {
     const emitter = new MessageEmitter<MessageData>;
     if (metaForEachMessage === undefined) {
-      warn("[Tether]: Failed to generate serializer metadata for MessageEmitter");
+      warn("[@rbxts/tether]: Failed to generate serializer metadata for MessageEmitter");
       return emitter.initialize();
     }
 

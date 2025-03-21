@@ -1,12 +1,12 @@
 import { Modding } from "@flamework/core";
 
-import { DropRequest, type UniversalMiddleware, type ServerMiddleware, type ClientMiddleware } from "./middleware";
+import { DropRequest, type SharedMiddleware, type ServerMiddleware, type ClientMiddleware } from "./middleware";
 
 type Guard<T> = (value: unknown) => value is T;
 
 const noOp = () => { };
 const validationGuardGenerationFailed = (context: "Client" | "Server") =>
-  `[Tether]: Failed to generate guard for validate${context}<T> builtin middleware - skipping validation`;
+  `[@rbxts/tether]: Failed to generate guard for validate${context}<T> builtin middleware - skipping validation`;
 
 export namespace BuiltinMiddlewares {
   /**
@@ -14,7 +14,7 @@ export namespace BuiltinMiddlewares {
    * @param interval The interval in seconds that the middleware should wait before allowing a new request.
    * @returns A middleware that will drop any message that occurs within the given interval.
    */
-  export function rateLimit(interval: number): UniversalMiddleware {
+  export function rateLimit(interval: number): SharedMiddleware {
     let lastRequest = 0;
 
     return () => {
