@@ -1,6 +1,6 @@
 {
   "name": "@rbxts/tether",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "main": "out/init.lua",
   "scripts": {
     "build": "rbxtsc",
@@ -11,7 +11,9 @@
     "roblox",
     "tether",
     "networking",
-    "message"
+    "message",
+    "serialization",
+    "middleware"
   ],
   "repository": {
     "url": "git+https://github.com/R-unic/tether.git"
