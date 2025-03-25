@@ -24,7 +24,7 @@ export class MiddlewareProvider<MessageData> {
   private readonly serverMiddlewares: Record<BaseMessage, Middleware[]> = {};
 
   /** @hidden */
-  public getClient<Kind extends keyof MessageData>(message: Kind): ClientMiddleware<MessageData[Kind]>[] {
+  public getClient<Kind extends keyof MessageData>(message: Kind & BaseMessage): ClientMiddleware<MessageData[Kind]>[] {
     if (this.clientMiddlewares[message] === undefined)
       this.clientMiddlewares[message] = [];
 
@@ -32,7 +32,7 @@ export class MiddlewareProvider<MessageData> {
   }
 
   /** @hidden */
-  public getServer<Kind extends keyof MessageData>(message: Kind): ServerMiddleware<MessageData[Kind]>[] {
+  public getServer<Kind extends keyof MessageData>(message: Kind & BaseMessage): ServerMiddleware<MessageData[Kind]>[] {
     if (this.serverMiddlewares[message] === undefined)
       this.serverMiddlewares[message] = [];
 
@@ -50,7 +50,7 @@ export class MiddlewareProvider<MessageData> {
   }
 
   public useClient<Kind extends keyof MessageData>(
-    message: Kind,
+    message: Kind & BaseMessage,
     middlewares: ClientMiddleware<MessageData[Kind]> | readonly ClientMiddleware<MessageData[Kind]>[],
     order?: number
   ): this {
@@ -65,7 +65,7 @@ export class MiddlewareProvider<MessageData> {
   }
 
   public useServer<Kind extends keyof MessageData>(
-    message: Kind,
+    message: Kind & BaseMessage,
     middlewares: ServerMiddleware<MessageData[Kind]> | readonly ServerMiddleware<MessageData[Kind]>[],
     order?: number
   ): this {
@@ -80,7 +80,7 @@ export class MiddlewareProvider<MessageData> {
   }
 
   public useShared<Kind extends keyof MessageData>(
-    message: Kind,
+    message: Kind & BaseMessage,
     middlewares: SharedMiddleware | readonly SharedMiddleware[],
     order?: number
   ): this {

@@ -1,11 +1,16 @@
 import { Modding } from "@flamework/core";
 import { Networking } from "@flamework/networking";
-import { createBinarySerializer, type Serializer, type SerializerMetadata } from "@rbxts/flamework-binary-serializer";
+import { createBinarySerializer, DataType, type Serializer, type SerializerMetadata } from "@rbxts/flamework-binary-serializer";
 import { Players, RunService } from "@rbxts/services";
 import Destroyable from "@rbxts/destroyable";
 
 import { DropRequest, MiddlewareProvider } from "./middleware";
-import type { SerializedPacket, ClientEvents, ClientMessageCallback, ServerEvents, ServerMessageCallback, MessageCallback } from "./structs";
+import type { SerializedPacket, ClientEvents, ClientMessageCallback, ServerEvents, ServerMessageCallback, MessageCallback, BaseMessage } from "./structs";
+
+interface TetherPacket<Data> {
+  readonly message: DataType.u8;
+  readonly data?: Data;
+}
 
 const GlobalEvents = Networking.createEvent<ServerEvents, ClientEvents>();
 export class MessageEmitter<MessageData> extends Destroyable {
@@ -13,14 +18,16 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   private readonly clientCallbacks = new Map<keyof MessageData, Set<ClientMessageCallback>>;
   private readonly serverCallbacks = new Map<keyof MessageData, Set<ServerMessageCallback>>;
-  private serializers: Partial<Record<keyof MessageData, Serializer<MessageData[keyof MessageData]>>> = {};
+  private serializers: Partial<Record<keyof MessageData, Serializer<TetherPacket<MessageData[keyof MessageData]>>>> = {};
   private serverEvents!: ReturnType<typeof GlobalEvents.createServer>;
   private clientEvents!: ReturnType<typeof GlobalEvents.createClient>;
 
   /** @metadata macro */
   public static create<MessageData>(
     metaForEachMessage?: Modding.Many<{
-      [Kind in keyof MessageData]: MessageData[Kind] extends undefined ? undefined : Modding.Many<SerializerMetadata<MessageData[Kind]>>
+      [Kind in keyof MessageData]: MessageData[Kind] extends undefined
+      ? undefined
+      : Modding.Many<SerializerMetadata<TetherPacket<MessageData[Kind]>>>
     }>
   ): MessageEmitter<MessageData> {
     const emitter = new MessageEmitter<MessageData>;
@@ -31,7 +38,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
     for (const [kind, meta] of pairs(metaForEachMessage)) {
       if (meta === undefined) continue;
-      emitter.addSerializer(kind as keyof MessageData, meta as Modding.Many<SerializerMetadata<MessageData[keyof MessageData]>>);
+      emitter.addSerializer(tonumber(kind) as keyof MessageData & BaseMessage, meta as Modding.Many<SerializerMetadata<TetherPacket<MessageData[keyof MessageData]>>>);
     }
 
     return emitter.initialize();
@@ -55,14 +62,14 @@ export class MessageEmitter<MessageData> extends Destroyable {
   /**.
    * @returns A destructor function that disconnects the callback from the message
    */
-  public onServerMessage<Kind extends keyof MessageData>(message: Kind, callback: ServerMessageCallback<MessageData[Kind]>): () => void {
+  public onServerMessage<Kind extends keyof MessageData>(message: Kind & BaseMessage, callback: ServerMessageCallback<MessageData[Kind]>): () => void {
     return this.on(message, callback);
   }
 
   /**.
    * @returns A destructor function that disconnects the callback from the message
    */
-  public onClientMessage<Kind extends keyof MessageData>(message: Kind, callback: ClientMessageCallback<MessageData[Kind]>): () => void {
+  public onClientMessage<Kind extends keyof MessageData>(message: Kind & BaseMessage, callback: ClientMessageCallback<MessageData[Kind]>): () => void {
     return this.on(message, callback);
   }
 
@@ -84,7 +91,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
    * @param data The data associated with the message
    * @param unreliable Whether the message should be sent unreliably
    */
-  public emitServer<Kind extends keyof MessageData>(message: Kind, data?: MessageData[Kind], unreliable = false): void {
+  public emitServer<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind], unreliable = false): void {
     const updateData = (newData?: MessageData[Kind]) => void (data = newData);
 
     for (const globalMiddleware of this.middleware.getServerGlobal<MessageData[Kind]>()) {
@@ -100,7 +107,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
       ? this.clientEvents.sendUnreliableServerMessage
       : this.clientEvents.sendServerMessage;
 
-    send(message, this.getPacket(message, data));
+    send(this.getPacket(message, data));
   }
 
   /**
@@ -111,7 +118,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
    * @param data The data associated with the message
    * @param unreliable Whether the message should be sent unreliably
    */
-  public emitClient<Kind extends keyof MessageData>(player: Player, message: Kind, data?: MessageData[Kind], unreliable = false): void {
+  public emitClient<Kind extends keyof MessageData>(player: Player, message: Kind & BaseMessage, data?: MessageData[Kind], unreliable = false): void {
     const updateData = (newData?: MessageData[Kind]) => void (data = newData);
 
     for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>()) {
@@ -127,7 +134,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
       ? this.serverEvents.sendUnreliableClientMessage
       : this.serverEvents.sendClientMessage;
 
-    send(player, message, this.getPacket(message, data));
+    send(player, this.getPacket(message, data));
   }
 
   /**
@@ -137,7 +144,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
    * @param data The data associated with the message
    * @param unreliable Whether the message should be sent unreliably
    */
-  public emitAllClients<Kind extends keyof MessageData>(message: Kind, data?: MessageData[Kind], unreliable = false): void {
+  public emitAllClients<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind], unreliable = false): void {
     const updateData = (newData?: MessageData[Kind]) => void (data = newData);
 
     for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>())
@@ -155,50 +162,52 @@ export class MessageEmitter<MessageData> extends Destroyable {
       ? this.serverEvents.sendUnreliableClientMessage
       : this.serverEvents.sendClientMessage;
 
-    send.broadcast(message, this.getPacket(message, data));
+    send.broadcast(this.getPacket(message, data));
   }
 
   private initialize(): this {
     if (RunService.IsClient())
-      this.janitor.Add(this.clientEvents.sendClientMessage.connect((sentMessage, packet) => {
+      this.janitor.Add(this.clientEvents.sendClientMessage.connect(serializedPacket => {
+        const sentMessage = buffer.readu8(serializedPacket.buffer, 0);
         const messageCallbacks = this.clientCallbacks.get(sentMessage as keyof MessageData) ?? new Set;
         if (messageCallbacks.size() === 0) return;
 
-        const serializer = this.getSerializer(sentMessage as keyof MessageData);
-        const data = packet !== undefined ? serializer.deserialize(packet.buffer, packet.blobs) : undefined;
+        const serializer = this.getSerializer(sentMessage as keyof MessageData & BaseMessage);
+        const packet = serializer.deserialize(serializedPacket.buffer, serializedPacket.blobs);
         for (const callback of messageCallbacks)
-          callback(data);
+          callback(packet.data);
       }));
     else
-      this.janitor.Add(this.serverEvents.sendServerMessage.connect((player, sentMessage, packet) => {
+      this.janitor.Add(this.serverEvents.sendServerMessage.connect((player, serializedPacket) => {
+        const sentMessage = buffer.readu8(serializedPacket.buffer, 0);
         const messageCallbacks = this.serverCallbacks.get(sentMessage as keyof MessageData) ?? new Set;
         if (messageCallbacks.size() === 0) return;
 
-        const serializer = this.getSerializer(sentMessage as keyof MessageData);
-        const data = packet !== undefined ? serializer.deserialize(packet.buffer, packet.blobs) : undefined;
+        const serializer = this.getSerializer(sentMessage as keyof MessageData & BaseMessage);
+        const packet = serializer.deserialize(serializedPacket.buffer, serializedPacket.blobs);
         for (const callback of messageCallbacks)
-          callback(player, data);
+          callback(player, packet.data);
       }));
 
     return this;
   }
 
-  private getPacket<Kind extends keyof MessageData>(message: Kind, data?: MessageData[Kind]): SerializedPacket | undefined {
+  private getPacket<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind]): SerializedPacket {
     const serializer = this.getSerializer(message);
-    return data === undefined ? undefined : serializer.serialize(data);
+    return serializer.serialize({ message, data });
   }
 
   /** @metadata macro */
-  private addSerializer<Kind extends keyof MessageData>(message: Kind, meta?: Modding.Many<SerializerMetadata<MessageData[Kind]>>): void {
-    this.serializers[message] = this.createMessageSerializer(meta) as unknown as Serializer<MessageData[keyof MessageData]>;
+  private addSerializer<Kind extends keyof MessageData>(message: Kind & BaseMessage, meta?: Modding.Many<SerializerMetadata<TetherPacket<MessageData[Kind]>>>): void {
+    this.serializers[message] = this.createMessageSerializer(meta) as unknown as Serializer<TetherPacket<MessageData[keyof MessageData]>>;
   }
 
   /** @metadata macro */
-  private createMessageSerializer<Kind extends keyof MessageData>(meta?: Modding.Many<SerializerMetadata<MessageData[Kind]>>): Serializer<MessageData[Kind]> {
-    return createBinarySerializer(meta);
+  private createMessageSerializer<Kind extends keyof MessageData>(meta?: Modding.Many<SerializerMetadata<TetherPacket<MessageData[Kind]>>>): Serializer<TetherPacket<MessageData[Kind]>> {
+    return createBinarySerializer<TetherPacket<MessageData[Kind]>>(meta);
   }
 
-  private getSerializer<Kind extends keyof MessageData>(message: Kind): Serializer<MessageData[Kind]> {
-    return this.serializers[tostring(message) as Kind] as unknown as Serializer<MessageData[Kind]>;
+  private getSerializer<Kind extends keyof MessageData>(message: Kind & BaseMessage): Serializer<TetherPacket<MessageData[Kind]>> {
+    return this.serializers[message] as unknown as Serializer<TetherPacket<MessageData[Kind]>>;
   }
 }
