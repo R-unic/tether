@@ -87,6 +87,16 @@ export function rateLimit(interval: number): SharedMiddleware {
 }
 ```
 
+#### Transforming data
+```ts
+import type { ServerMiddleware } from "@rbxts/tether";
+
+export function incrementNumberData<T extends number>(): ServerMiddleware<T> {
+  return () => (data, updateData) =>
+    updateData(data as T + 1 as T); // sets the data to be used by the any subsequent middlewares as well as sent through the remote
+}
+```
+
 ### Using middleware
 ```ts
 import type { DataType } from "@rbxts/flamework-binary-serializer";
