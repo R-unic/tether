@@ -91,9 +91,9 @@ export function rateLimit(interval: number): SharedMiddleware {
 ```ts
 import type { ServerMiddleware } from "@rbxts/tether";
 
-export function incrementNumberData<T extends number>(): ServerMiddleware<T> {
-  return () => (data, updateData) =>
-    updateData(data as T + 1 as T); // sets the data to be used by the any subsequent middlewares as well as sent through the remote
+export function incrementNumberData(): ServerMiddleware<number> {
+  // sets the data to be used by the any subsequent middlewares as well as sent through the remote
+  return () => (data, updateData) => updateData(data + 1);
 }
 ```
 
@@ -111,8 +111,10 @@ messaging.middleware
   // the data associated with the message at runtime using type guards
   .useServer(Message.Test, [BuiltinMiddlewares.validateServer()])
   // logs every message fired
-  .useServerGlobal([logServer()]);
-  .useClientGlobal([logClient()]);
+  .useServerGlobal([logServer()])
+  .useClientGlobal([logClient()])
+  .useServer(Message.Test, [incrementNumberData()]) // error! - data for Message.Test is not a number 
+  .useServerGlobal([incrementNumberData()]); // error! - global data type is always 'unknown', we cannot guarantee a number
 
 export const enum Message {
   Test
