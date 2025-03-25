@@ -89,11 +89,11 @@ export class MiddlewareProvider<MessageData> {
     return this;
   }
 
-  public useClientGlobal<Data>(
-    middlewares: ClientMiddleware<Data> | readonly ClientMiddleware<Data>[],
+  public useClientGlobal(
+    middlewares: ClientMiddleware | readonly ClientMiddleware[],
     order?: number
   ): this {
-    const globalMiddleware = this.getClientGlobal<Data>();
+    const globalMiddleware = this.getClientGlobal();
     if (typeIs(middlewares, "function"))
       globalMiddleware.insert(order ?? globalMiddleware.size() - 1, middlewares);
     else
@@ -103,11 +103,11 @@ export class MiddlewareProvider<MessageData> {
     return this;
   }
 
-  public useServerGlobal<Data>(
-    middlewares: ServerMiddleware<Data> | readonly ServerMiddleware<Data>[],
+  public useServerGlobal(
+    middlewares: ServerMiddleware | readonly ServerMiddleware[],
     order?: number
   ): this {
-    const globalMiddleware = this.getServerGlobal<Data>();
+    const globalMiddleware = this.getServerGlobal();
     if (typeIs(middlewares, "function"))
       globalMiddleware.insert(order ?? globalMiddleware.size() - 1, middlewares);
     else
