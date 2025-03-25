@@ -29,7 +29,7 @@ export interface MessageData {
 ```ts
 import { Message, messaging } from "shared/messaging";
 
-messaging.onServerMessage(Message.TEST, (player, data) => {
+messaging.onServerMessage(Message.Test, (player, data) => {
   print(player, "sent data:", data);
 });
 ```
@@ -38,27 +38,53 @@ messaging.onServerMessage(Message.TEST, (player, data) => {
 ```ts
 import { Message, messaging } from "shared/messaging";
 
-messaging.emitServer(Message.TEST, {
+messaging.emitServer(Message.Test, {
   foo: "bar",
   n: 69
 });
 ```
 
 ## Middleware
+Drop or delay requests
 
 ### Creating middleware
-```ts
-import { type Middleware, DropRequest } from "@rbxts/tether";
 
-export function rateLimit(interval: number): Middleware {
+#### Client
+```ts
+import { type ClientMiddleware, DropRequest } from "@rbxts/tether";
+
+export function logClient(): ClientMiddleware {
+  return message =>
+    (player, data) =>
+      print(`[LOG]: Message ${message} sent to player ${player} with data ${data}`);
+}
+```
+
+#### Server
+```ts
+import { type ServerMiddleware, DropRequest } from "@rbxts/tether";
+
+export function logServer(): ServerMiddleware {
+  return message =>
+    data =>
+      print(`[LOG]: Message ${message} sent to server with data ${data}`);
+}
+```
+
+#### Shared
+```ts
+import { type SharedMiddleware, DropRequest } from "@rbxts/tether";
+
+export function rateLimit(interval: number): SharedMiddleware<MessageData> {
   let lastRequest = 0;
 
-  return () => {
-    if (os.clock() - lastRequest < interval)
-      return DropRequest;
+  return message =>
+    () => {
+      if (os.clock() - lastRequest < interval)
+        return DropRequest;
 
-    lastRequest = os.clock();
-  };
+      lastRequest = os.clock();
+    };
 }
 ```
 
@@ -72,11 +98,11 @@ messaging.middleware
   // only allows requests to the server every 5 seconds,
   // drops any requests that occur within 5 seconds of each other
   .useServer(Message.Test, [BuiltinMiddlewares.rateLimit(5)]) 
-  // automatically validates that data sent through the remote
-  // matches the data associated with the message at runtime
+  // automatically validates that the data sent through the remote matches
+  // the data associated with the message at runtime using type guards
   .useShared(Message.Test, [BuiltinMiddlewares.validateClient()])
-  // rate limit every server remote (global)
-  .useServerGlobal([BuiltinMiddlewares.rateLimit(1)]);
+  .useClientGlobal([BuiltinMiddlewares.logClient()]);
+  .useServerGlobal([BuiltinMiddlewares.logServer()]);
 
 export const enum Message {
   Test

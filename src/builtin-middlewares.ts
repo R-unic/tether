@@ -1,6 +1,7 @@
 import { Modding } from "@flamework/core";
 
 import { DropRequest, type SharedMiddleware, type ServerMiddleware, type ClientMiddleware } from "./middleware";
+import { BaseMessage } from "./structs";
 
 type Guard<T> = (value: unknown) => value is T;
 
@@ -8,9 +9,12 @@ const noOp = () => () => { };
 const validationGuardGenerationFailed = (context: "Client" | "Server") =>
   `[@rbxts/tether]: Failed to generate guard for validate${context}<T> builtin middleware - skipping validation`;
 
+const guardFailed = (message: BaseMessage) =>
+  `[@rbxts/tether]: Type validation failed for message '${tostring(message)}' - check your sent data`;
+
 export namespace BuiltinMiddlewares {
   /**
-   * Creates a shared middleware that will drop any message that occurs within the given interval of the previous message
+   * Creates a shared per-message middleware that will drop any message that occurs within the given interval of the previous message
    *
    * @param interval The interval in seconds that the middleware should wait before allowing a new request
    * @returns A middleware that will drop any message that occurs within the given interval
@@ -42,9 +46,10 @@ export namespace BuiltinMiddlewares {
       return noOp;
     }
 
-    return () =>
+    return message =>
       data => {
         if (guard(data)) return;
+        warn(guardFailed(message));
         return DropRequest;
       };
   }
@@ -64,9 +69,10 @@ export namespace BuiltinMiddlewares {
       return noOp;
     }
 
-    return () =>
+    return message =>
       (player, data) => {
         if (guard(data)) return;
+        warn(guardFailed(message));
         return DropRequest;
       };
   }
