@@ -1,6 +1,9 @@
 # Tether
 A message-based networking solution for Roblox with automatic binary serialization.
 
+> [!CAUTION]
+> Depends on `rbxts-transformer-flamework`!
+
 ## Usage
 
 ### In `shared/messaging.ts`
@@ -49,25 +52,21 @@ Drop or delay requests
 
 ### Creating middleware
 
-#### Client
+#### Client, Global
 ```ts
-import { type ClientMiddleware, DropRequest } from "@rbxts/tether";
+import type { ClientGlobalMiddleware } from "@rbxts/tether";
 
-export function logClient(): ClientMiddleware {
-  return message =>
-    (player, data) =>
-      print(`[LOG]: Message ${message} sent to player ${player} with data ${data}`);
+export function logClient(): ClientGlobalMiddleware {
+  return (player, data) => print(`[LOG]: Sent message to player ${player} with data:`, data);
 }
 ```
 
-#### Server
+#### Server, Global
 ```ts
-import { type ServerMiddleware, DropRequest } from "@rbxts/tether";
+import type { ServerGlobalMiddleware } from "@rbxts/tether";
 
-export function logServer(): ServerMiddleware {
-  return message =>
-    data =>
-      print(`[LOG]: Message ${message} sent to server with data ${data}`);
+export function logServer(): ServerGlobalMiddleware {
+  return data => print(`[LOG]: Sent message to server with data:`, data);
 }
 ```
 
@@ -78,8 +77,8 @@ import { type SharedMiddleware, DropRequest } from "@rbxts/tether";
 export function rateLimit(interval: number): SharedMiddleware<MessageData> {
   let lastRequest = 0;
 
-  return message =>
-    () => {
+  return message => // message attempting to be sent
+    () => { // no data/player - it's a shared middleware
       if (os.clock() - lastRequest < interval)
         return DropRequest;
 
@@ -101,8 +100,8 @@ messaging.middleware
   // automatically validates that the data sent through the remote matches
   // the data associated with the message at runtime using type guards
   .useShared(Message.Test, [BuiltinMiddlewares.validateClient()])
-  .useClientGlobal([BuiltinMiddlewares.logClient()]);
-  .useServerGlobal([BuiltinMiddlewares.logServer()]);
+  .useClientGlobal([logClient()]);
+  .useServerGlobal([logServer()]);
 
 export const enum Message {
   Test
