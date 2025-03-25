@@ -53,20 +53,20 @@ export class MessageEmitter<MessageData> extends Destroyable {
   }
 
   /**.
-   * @returns A destructor function that disconnects the callback from the message.
+   * @returns A destructor function that disconnects the callback from the message
    */
   public onServerMessage<Kind extends keyof MessageData>(message: Kind, callback: ServerMessageCallback<MessageData[Kind]>): () => void {
     return this.on(message, callback);
   }
 
   /**.
-   * @returns A destructor function that disconnects the callback from the message.
+   * @returns A destructor function that disconnects the callback from the message
    */
   public onClientMessage<Kind extends keyof MessageData>(message: Kind, callback: ClientMessageCallback<MessageData[Kind]>): () => void {
     return this.on(message, callback);
   }
 
-  private on<Kind extends keyof MessageData>(message: Kind, callback: MessageCallback<MessageData[Kind]>): () => void {
+  private on<Kind extends keyof MessageData, R>(message: Kind, callback: MessageCallback<MessageData[Kind]>): () => void {
     const callbacksMap = RunService.IsServer() ? this.serverCallbacks : this.clientCallbacks;
     if (!callbacksMap.has(message))
       callbacksMap.set(message, new Set);
@@ -78,19 +78,19 @@ export class MessageEmitter<MessageData> extends Destroyable {
   }
 
   /**
-   * Emits a message to all connected clients.
+   * Emits a message to all connected clients
    *
-   * @param message - The message kind to be sent.
-   * @param data - The data associated with the message.
-   * @param unreliable - Optional flag indicating if the message should be sent unreliably.
+   * @param message The message kind to be sent
+   * @param data The data associated with the message
+   * @param unreliable Whether the message should be sent unreliably
    */
   public emitServer<Kind extends keyof MessageData>(message: Kind, data?: MessageData[Kind], unreliable = false): void {
-    for (const middleware of this.middleware.getServerGlobal()) {
-      const result = middleware(data as Readonly<unknown>);
+    for (const globalMiddleware of this.middleware.getServerGlobal()) {
+      const result = globalMiddleware(data as Readonly<unknown>);
       if (result === DropRequest) return;
     }
     for (const middleware of this.middleware.getServer(message)) {
-      const result = middleware(data);
+      const result = middleware(message)(data);
       if (result === DropRequest) return;
     }
 
@@ -102,20 +102,20 @@ export class MessageEmitter<MessageData> extends Destroyable {
   }
 
   /**
-   * Emits a message to a specific client.
+   * Emits a message to a specific client
    *
-   * @param player - The player to whom the message is sent.
-   * @param message - The message kind to be sent.
-   * @param data - The data associated with the message.
-   * @param unreliable - Optional flag indicating if the message should be sent unreliably.
+   * @param player The player to whom the message is sent
+   * @param message The message kind to be sent
+   * @param data The data associated with the message
+   * @param unreliable Whether the message should be sent unreliably
    */
   public emitClient<Kind extends keyof MessageData>(player: Player, message: Kind, data?: MessageData[Kind], unreliable = false): void {
-    for (const middleware of this.middleware.getClientGlobal()) {
-      const result = middleware(player, data as Readonly<unknown>);
+    for (const globalMiddleware of this.middleware.getClientGlobal()) {
+      const result = globalMiddleware(player, data as Readonly<unknown>);
       if (result === DropRequest) return;
     }
     for (const middleware of this.middleware.getClient(message)) {
-      const result = middleware(player, data);
+      const result = middleware(message)(player, data);
       if (result === DropRequest) return;
     }
 
@@ -127,21 +127,21 @@ export class MessageEmitter<MessageData> extends Destroyable {
   }
 
   /**
-   * Emits a message to all connected clients.
+   * Emits a message to all connected clients
    *
-   * @param message - The message kind to be sent.
-   * @param data - The data associated with the message.
-   * @param unreliable - Optional flag indicating if the message should be sent unreliably.
+   * @param message The message kind to be sent
+   * @param data The data associated with the message
+   * @param unreliable Whether the message should be sent unreliably
    */
   public emitAllClients<Kind extends keyof MessageData>(message: Kind, data?: MessageData[Kind], unreliable = false): void {
-    for (const middleware of this.middleware.getClientGlobal())
+    for (const globalMiddleware of this.middleware.getClientGlobal())
       for (const player of Players.GetPlayers()) {
-        const result = middleware(player, data as Readonly<unknown>);
+        const result = globalMiddleware(player, data as Readonly<unknown>);
         if (result === DropRequest) return;
       }
     for (const middleware of this.middleware.getClient(message))
       for (const player of Players.GetPlayers()) {
-        const result = middleware(player, data);
+        const result = middleware(message)(player, data);
         if (result === DropRequest) return;
       }
 
