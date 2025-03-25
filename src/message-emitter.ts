@@ -85,12 +85,14 @@ export class MessageEmitter<MessageData> extends Destroyable {
    * @param unreliable Whether the message should be sent unreliably
    */
   public emitServer<Kind extends keyof MessageData>(message: Kind, data?: MessageData[Kind], unreliable = false): void {
-    for (const globalMiddleware of this.middleware.getServerGlobal()) {
-      const result = globalMiddleware(message)(data as Readonly<unknown>);
+    const updateData = (newData?: MessageData[Kind]) => void (data = newData);
+
+    for (const globalMiddleware of this.middleware.getServerGlobal<MessageData[Kind]>()) {
+      const result = globalMiddleware(message)(data!, updateData);
       if (result === DropRequest) return;
     }
     for (const middleware of this.middleware.getServer(message)) {
-      const result = middleware(message)(data);
+      const result = middleware(message)(data!, updateData);
       if (result === DropRequest) return;
     }
 
@@ -110,12 +112,14 @@ export class MessageEmitter<MessageData> extends Destroyable {
    * @param unreliable Whether the message should be sent unreliably
    */
   public emitClient<Kind extends keyof MessageData>(player: Player, message: Kind, data?: MessageData[Kind], unreliable = false): void {
-    for (const globalMiddleware of this.middleware.getClientGlobal()) {
-      const result = globalMiddleware(message)(player, data as Readonly<unknown>);
+    const updateData = (newData?: MessageData[Kind]) => void (data = newData);
+
+    for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>()) {
+      const result = globalMiddleware(message)(player, data!, updateData);
       if (result === DropRequest) return;
     }
     for (const middleware of this.middleware.getClient(message)) {
-      const result = middleware(message)(player, data);
+      const result = middleware(message)(player, data!, updateData);
       if (result === DropRequest) return;
     }
 
@@ -134,14 +138,16 @@ export class MessageEmitter<MessageData> extends Destroyable {
    * @param unreliable Whether the message should be sent unreliably
    */
   public emitAllClients<Kind extends keyof MessageData>(message: Kind, data?: MessageData[Kind], unreliable = false): void {
-    for (const globalMiddleware of this.middleware.getClientGlobal())
+    const updateData = (newData?: MessageData[Kind]) => void (data = newData);
+
+    for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>())
       for (const player of Players.GetPlayers()) {
-        const result = globalMiddleware(message)(player, data as Readonly<unknown>);
+        const result = globalMiddleware(message)(player, data!, updateData);
         if (result === DropRequest) return;
       }
     for (const middleware of this.middleware.getClient(message))
       for (const player of Players.GetPlayers()) {
-        const result = middleware(message)(player, data);
+        const result = middleware(message)(player, data!, updateData);
         if (result === DropRequest) return;
       }
 

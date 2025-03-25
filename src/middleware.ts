@@ -2,16 +2,22 @@ import type { BaseMessage } from "./structs";
 
 declare function newproxy<T extends symbol = symbol>(): T;
 
-type DropRequestSymbol = symbol & { _skip_middleware?: undefined };
+type DropRequestSymbol = symbol & { _drop_req?: undefined };
 export const DropRequest = newproxy<DropRequestSymbol>();
 
-export type ClientMiddleware<Data = unknown> = (message: BaseMessage) => (player: Player, data: Readonly<Data> | undefined) => DropRequestSymbol | void;
-export type ServerMiddleware<Data = unknown> = (message: BaseMessage) => (data: Readonly<Data> | undefined) => DropRequestSymbol | void;
+type UpdateDataFn<T> = (newData: T) => void;
+export type ClientMiddleware<Data = unknown> =
+  (message: BaseMessage) =>
+    (player: Player, data: Readonly<Data>, updateData: UpdateDataFn<Data>) => DropRequestSymbol | void;
+
+export type ServerMiddleware<Data = unknown> =
+  (message: BaseMessage) =>
+    (data: Readonly<Data>, updateData: UpdateDataFn<Data>) => DropRequestSymbol | void;
+
 export type SharedMiddleware = (message: BaseMessage) => () => DropRequestSymbol | void;
 export type Middleware<Data = unknown> = ServerMiddleware<Data> & ClientMiddleware<Data>;
 
 export class MiddlewareProvider<MessageData> {
-  /** @metadata poop */
   private readonly clientGlobalMiddlewares: Middleware[] = [];
   private readonly serverGlobalMiddlewares: Middleware[] = [];
   private readonly clientMiddlewares: Record<BaseMessage, Middleware[]> = {};
@@ -22,7 +28,7 @@ export class MiddlewareProvider<MessageData> {
     if (this.clientMiddlewares[message] === undefined)
       this.clientMiddlewares[message] = [];
 
-    return this.clientMiddlewares[message];
+    return this.clientMiddlewares[message] as ClientMiddleware<MessageData[Kind]>[];
   }
 
   /** @hidden */
@@ -30,17 +36,17 @@ export class MiddlewareProvider<MessageData> {
     if (this.serverMiddlewares[message] === undefined)
       this.serverMiddlewares[message] = [];
 
-    return this.serverMiddlewares[message];
+    return this.serverMiddlewares[message] as ServerMiddleware<MessageData[Kind]>[];
   }
 
   /** @hidden */
   public getClientGlobal<Data>(): ClientMiddleware<Data>[] {
-    return this.clientGlobalMiddlewares;
+    return this.clientGlobalMiddlewares as ClientMiddleware<Data>[];
   }
 
   /** @hidden */
   public getServerGlobal<Data>(): ServerMiddleware<Data>[] {
-    return this.serverGlobalMiddlewares;
+    return this.serverGlobalMiddlewares as ServerMiddleware<Data>[];
   }
 
   public useClient<Kind extends keyof MessageData>(
@@ -52,7 +58,7 @@ export class MiddlewareProvider<MessageData> {
     if (typeIs(middlewares, "function"))
       messageMiddleware.insert(order ?? messageMiddleware.size() - 1, middlewares);
     else
-      for (const middleware of middlewares as Middleware[])
+      for (const middleware of middlewares)
         this.useClient(message, middleware, order);
 
     return this;
@@ -67,7 +73,7 @@ export class MiddlewareProvider<MessageData> {
     if (typeIs(middlewares, "function"))
       messageMiddleware.insert(order ?? messageMiddleware.size() - 1, middlewares);
     else
-      for (const middleware of middlewares as Middleware[])
+      for (const middleware of middlewares)
         this.useServer(message, middleware, order);
 
     return this;
@@ -87,11 +93,11 @@ export class MiddlewareProvider<MessageData> {
     middlewares: ClientMiddleware<Data> | readonly ClientMiddleware<Data>[],
     order?: number
   ): this {
-    const globalMiddleware = this.getClientGlobal();
+    const globalMiddleware = this.getClientGlobal<Data>();
     if (typeIs(middlewares, "function"))
-      globalMiddleware.insert(order ?? globalMiddleware.size() - 1, middlewares as Middleware);
+      globalMiddleware.insert(order ?? globalMiddleware.size() - 1, middlewares);
     else
-      for (const middleware of middlewares as Middleware[])
+      for (const middleware of middlewares)
         this.useClientGlobal(middleware, order);
 
     return this;
@@ -101,11 +107,11 @@ export class MiddlewareProvider<MessageData> {
     middlewares: ServerMiddleware<Data> | readonly ServerMiddleware<Data>[],
     order?: number
   ): this {
-    const globalMiddleware = this.getServerGlobal();
+    const globalMiddleware = this.getServerGlobal<Data>();
     if (typeIs(middlewares, "function"))
-      globalMiddleware.insert(order ?? globalMiddleware.size() - 1, middlewares as Middleware);
+      globalMiddleware.insert(order ?? globalMiddleware.size() - 1, middlewares);
     else
-      for (const middleware of middlewares as Middleware[])
+      for (const middleware of middlewares)
         this.useServerGlobal(middleware, order);
 
     return this;

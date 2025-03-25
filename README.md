@@ -48,7 +48,7 @@ messaging.emitServer(Message.Test, {
 ```
 
 ## Middleware
-Drop or delay requests
+Drop, delay, or modify requests
 
 ### Creating middleware
 
