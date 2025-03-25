@@ -8,7 +8,7 @@ export const DropRequest = newproxy<DropRequestSymbol>();
 type UpdateDataFn<T> = (newData: T) => void;
 export type ClientMiddleware<Data = unknown> =
   (message: BaseMessage) =>
-    (player: Player, data: Readonly<Data>, updateData: UpdateDataFn<Data>) => DropRequestSymbol | void;
+    (player: Player | Player[], data: Readonly<Data>, updateData: UpdateDataFn<Data>) => DropRequestSymbol | void;
 
 export type ServerMiddleware<Data = unknown> =
   (message: BaseMessage) =>

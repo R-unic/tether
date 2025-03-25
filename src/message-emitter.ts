@@ -113,7 +113,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
    * @param data The data associated with the message
    * @param unreliable Whether the message should be sent unreliably
    */
-  public emitClient<Kind extends keyof MessageData>(player: Player, message: Kind & BaseMessage, data?: MessageData[Kind], unreliable = false): void {
+  public emitClient<Kind extends keyof MessageData>(player: Player | Player[], message: Kind & BaseMessage, data?: MessageData[Kind], unreliable = false): void {
     const updateData = (newData?: MessageData[Kind]) => void (data = newData);
 
     for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>()) {
