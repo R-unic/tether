@@ -52,21 +52,21 @@ Drop or delay requests
 
 ### Creating middleware
 
-#### Client, Global
+#### Client
 ```ts
-import type { ClientGlobalMiddleware } from "@rbxts/tether";
+import type { ClientMiddleware } from "@rbxts/tether";
 
-export function logClient(): ClientGlobalMiddleware {
-  return (player, data) => print(`[LOG]: Sent message to player ${player} with data:`, data);
+export function logClient(): ClientMiddleware {
+  return message => (player, data) => print(`[LOG]: Sent message '${message}' to player ${player} with data:`, data);
 }
 ```
 
-#### Server, Global
+#### Server
 ```ts
-import type { ServerGlobalMiddleware } from "@rbxts/tether";
+import type { ServerMiddleware } from "@rbxts/tether";
 
-export function logServer(): ServerGlobalMiddleware {
-  return data => print(`[LOG]: Sent message to server with data:`, data);
+export function logServer(): ServerMiddleware {
+  return message => data => print(`[LOG]: Sent message '${message}' to server with data:`, data);
 }
 ```
 
@@ -74,7 +74,7 @@ export function logServer(): ServerGlobalMiddleware {
 ```ts
 import { type SharedMiddleware, DropRequest } from "@rbxts/tether";
 
-export function rateLimit(interval: number): SharedMiddleware<MessageData> {
+export function rateLimit(interval: number): SharedMiddleware {
   let lastRequest = 0;
 
   return message => // message attempting to be sent
@@ -99,9 +99,10 @@ messaging.middleware
   .useServer(Message.Test, [BuiltinMiddlewares.rateLimit(5)]) 
   // automatically validates that the data sent through the remote matches
   // the data associated with the message at runtime using type guards
-  .useShared(Message.Test, [BuiltinMiddlewares.validateClient()])
-  .useClientGlobal([logClient()]);
+  .useServer(Message.Test, [BuiltinMiddlewares.validateServer()])
+  // logs every message fired
   .useServerGlobal([logServer()]);
+  .useClientGlobal([logClient()]);
 
 export const enum Message {
   Test

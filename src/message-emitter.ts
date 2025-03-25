@@ -86,7 +86,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
    */
   public emitServer<Kind extends keyof MessageData>(message: Kind, data?: MessageData[Kind], unreliable = false): void {
     for (const globalMiddleware of this.middleware.getServerGlobal()) {
-      const result = globalMiddleware(data as Readonly<unknown>);
+      const result = globalMiddleware(message)(data as Readonly<unknown>);
       if (result === DropRequest) return;
     }
     for (const middleware of this.middleware.getServer(message)) {
@@ -111,7 +111,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
    */
   public emitClient<Kind extends keyof MessageData>(player: Player, message: Kind, data?: MessageData[Kind], unreliable = false): void {
     for (const globalMiddleware of this.middleware.getClientGlobal()) {
-      const result = globalMiddleware(player, data as Readonly<unknown>);
+      const result = globalMiddleware(message)(player, data as Readonly<unknown>);
       if (result === DropRequest) return;
     }
     for (const middleware of this.middleware.getClient(message)) {
@@ -136,7 +136,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
   public emitAllClients<Kind extends keyof MessageData>(message: Kind, data?: MessageData[Kind], unreliable = false): void {
     for (const globalMiddleware of this.middleware.getClientGlobal())
       for (const player of Players.GetPlayers()) {
-        const result = globalMiddleware(player, data as Readonly<unknown>);
+        const result = globalMiddleware(message)(player, data as Readonly<unknown>);
         if (result === DropRequest) return;
       }
     for (const middleware of this.middleware.getClient(message))
