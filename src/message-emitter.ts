@@ -1,16 +1,11 @@
 import { Modding } from "@flamework/core";
 import { Networking } from "@flamework/networking";
-import { createBinarySerializer, DataType, type Serializer, type SerializerMetadata } from "@rbxts/flamework-binary-serializer";
+import { createBinarySerializer, type Serializer, type SerializerMetadata } from "@rbxts/flamework-binary-serializer";
 import { Players, RunService } from "@rbxts/services";
 import Destroyable from "@rbxts/destroyable";
 
 import { DropRequest, MiddlewareProvider } from "./middleware";
-import type { SerializedPacket, ClientEvents, ClientMessageCallback, ServerEvents, ServerMessageCallback, MessageCallback, BaseMessage } from "./structs";
-
-interface TetherPacket<Data> {
-  readonly message: DataType.u8;
-  readonly data?: Data;
-}
+import type { TetherPacket, SerializedPacket, ClientEvents, ClientMessageCallback, ServerEvents, ServerMessageCallback, MessageCallback, BaseMessage } from "./structs";
 
 const GlobalEvents = Networking.createEvent<ServerEvents, ClientEvents>();
 export class MessageEmitter<MessageData> extends Destroyable {
