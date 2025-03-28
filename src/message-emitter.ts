@@ -68,17 +68,6 @@ export class MessageEmitter<MessageData> extends Destroyable {
     return this.on(message, callback);
   }
 
-  private on<Kind extends keyof MessageData, R>(message: Kind, callback: MessageCallback<MessageData[Kind]>): () => void {
-    const callbacksMap = RunService.IsServer() ? this.serverCallbacks : this.clientCallbacks;
-    if (!callbacksMap.has(message))
-      callbacksMap.set(message, new Set);
-
-    const callbacks = callbacksMap.get(message)!;
-    callbacks.add(callback as MessageCallback);
-    callbacksMap.set(message, callbacks);
-    return () => callbacks.delete(callback as MessageCallback);
-  }
-
   /**
    * Emits a message to all connected clients
    *
@@ -168,9 +157,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
         if (messageCallbacks.size() === 0) return;
 
         const serializer = this.getSerializer(sentMessage as keyof MessageData & BaseMessage);
-        const packet = serializer.deserialize(serializedPacket.buffer, serializedPacket.blobs);
+        const packet = serializer?.deserialize(serializedPacket.buffer, serializedPacket.blobs);
         for (const callback of messageCallbacks)
-          callback(packet.data);
+          callback(packet?.data);
       }));
     else
       this.janitor.Add(this.serverEvents.sendServerMessage.connect((player, serializedPacket) => {
@@ -179,17 +168,36 @@ export class MessageEmitter<MessageData> extends Destroyable {
         if (messageCallbacks.size() === 0) return;
 
         const serializer = this.getSerializer(sentMessage as keyof MessageData & BaseMessage);
-        const packet = serializer.deserialize(serializedPacket.buffer, serializedPacket.blobs);
+        const packet = serializer?.deserialize(serializedPacket.buffer, serializedPacket.blobs);
         for (const callback of messageCallbacks)
-          callback(player, packet.data);
+          callback(player, packet?.data);
       }));
 
     return this;
   }
 
+  private on<Kind extends keyof MessageData>(message: Kind, callback: MessageCallback<MessageData[Kind]>): () => void {
+    const callbacksMap = RunService.IsServer() ? this.serverCallbacks : this.clientCallbacks;
+    if (!callbacksMap.has(message))
+      callbacksMap.set(message, new Set);
+
+    const callbacks = callbacksMap.get(message)!;
+    callbacks.add(callback as MessageCallback);
+    callbacksMap.set(message, callbacks);
+    return () => callbacks.delete(callback as MessageCallback);
+  }
+
   private getPacket<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind]): SerializedPacket {
     const serializer = this.getSerializer(message);
-    return serializer.serialize({ message, data });
+    if (serializer !== undefined)
+      return serializer.serialize({ message, data });
+
+    const buf = buffer.create(1);
+    buffer.writeu8(buf, 0, message);
+    return {
+      buffer: buf,
+      blobs: []
+    };
   }
 
   /** @metadata macro */
@@ -202,7 +210,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     return createBinarySerializer<TetherPacket<MessageData[Kind]>>(meta);
   }
 
-  private getSerializer<Kind extends keyof MessageData>(message: Kind & BaseMessage): Serializer<TetherPacket<MessageData[Kind]>> {
-    return this.serializers[message] as unknown as Serializer<TetherPacket<MessageData[Kind]>>;
+  private getSerializer<Kind extends keyof MessageData>(message: Kind & BaseMessage): Serializer<TetherPacket<MessageData[Kind]>> | undefined {
+    return this.serializers[message] as never;
   }
 }
