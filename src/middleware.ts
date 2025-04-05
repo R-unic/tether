@@ -14,7 +14,10 @@ export type ServerMiddleware<Data = unknown> =
   (message: BaseMessage) =>
     (data: Readonly<Data>, updateData: UpdateDataFn<Data>, getRawData: () => SerializedPacket) => DropRequestSymbol | void;
 
-export type SharedMiddleware = (message: BaseMessage) => () => DropRequestSymbol | void;
+export type SharedMiddleware =
+  (message: BaseMessage) =>
+    (data: unknown, updateData: UpdateDataFn<unknown>, getRawData: () => SerializedPacket) => DropRequestSymbol | void;
+
 export type Middleware<Data = unknown> = ServerMiddleware<Data> & ClientMiddleware<Data>;
 
 export class MiddlewareProvider<MessageData> {
@@ -84,8 +87,15 @@ export class MiddlewareProvider<MessageData> {
     middlewares: SharedMiddleware | readonly SharedMiddleware[],
     order?: number
   ): this {
-    this.useClient(message, middlewares, order);
-    this.useServer(message, middlewares, order);
+    const server = middlewares as ServerMiddleware<MessageData[Kind]> | ServerMiddleware<MessageData[Kind]>[];
+    const client = (typeIs(middlewares, "function") ? [middlewares] : middlewares)
+      .map<ClientMiddleware<MessageData[Kind]>>(middleware =>
+        message =>
+          (_, data, updateData, getRawData) =>
+            middleware(message)(data, updateData as UpdateDataFn<unknown>, getRawData));
+
+    this.useServer(message, server, order);
+    this.useClient(message, client, order);
     return this;
   }
 
@@ -121,7 +131,13 @@ export class MiddlewareProvider<MessageData> {
     middlewares: SharedMiddleware | readonly SharedMiddleware[],
     order?: number
   ): this {
-    this.useClientGlobal(middlewares, order);
+    const client = (typeIs(middlewares, "function") ? [middlewares] : middlewares)
+      .map<ClientMiddleware>(middleware =>
+        message =>
+          (_, data, updateData, getRawData) =>
+            middleware(message)(data, updateData as UpdateDataFn<unknown>, getRawData));
+
+    this.useClientGlobal(client, order);
     this.useServerGlobal(middlewares, order);
     return this;
   }
