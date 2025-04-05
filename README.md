@@ -52,6 +52,7 @@ Drop, delay, or modify requests
 
 ### Creating middleware
 
+**Note:** These client/server middlewares can be implemented as shared middlewares. This is strictly an example.
 #### Client
 ```ts
 import type { ClientMiddleware } from "@rbxts/tether";
@@ -109,10 +110,11 @@ messaging.middleware
   .useServer(Message.Test, [BuiltinMiddlewares.rateLimit(5)]) 
   // automatically validates that the data sent through the remote matches
   // the data associated with the message at runtime using type guards
-  .useServer(Message.Test, [BuiltinMiddlewares.validateServer()])
+  .useServer(Message.Test, [BuiltinMiddlewares.validate()])
   // logs every message fired
   .useServerGlobal([logServer()])
   .useClientGlobal([logClient()])
+  .useSharedGlobal([BuiltinMiddlewares.debug()]); // verbosely logs every packet sent
   .useServer(Message.Test, [incrementNumberData()]) // error! - data for Message.Test is not a number 
   .useServerGlobal([incrementNumberData()]); // error! - global data type is always 'unknown', we cannot guarantee a number
 

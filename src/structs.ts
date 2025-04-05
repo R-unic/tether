@@ -13,7 +13,7 @@ export interface SerializedPacket {
 
 export interface TetherPacket<Data> {
   readonly message: DataType.u8;
-  readonly data?: Data;
+  readonly data: Data;
 }
 
 export type MessageEvent = (packet: SerializedPacket) => void;

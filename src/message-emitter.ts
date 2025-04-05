@@ -192,7 +192,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   private getPacket<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind]): SerializedPacket {
     const serializer = this.getSerializer(message);
-    if (serializer !== undefined)
+    if (serializer !== undefined && data !== undefined)
       return serializer.serialize({ message, data });
 
     const buf = buffer.create(1);
