@@ -1,4 +1,4 @@
-import type { BaseMessage } from "./structs";
+import type { BaseMessage, SerializedPacket } from "./structs";
 
 declare function newproxy<T extends symbol = symbol>(): T;
 
@@ -8,11 +8,11 @@ export const DropRequest = newproxy<DropRequestSymbol>();
 type UpdateDataFn<T> = (newData: T) => void;
 export type ClientMiddleware<Data = unknown> =
   (message: BaseMessage) =>
-    (player: Player | Player[], data: Readonly<Data>, updateData: UpdateDataFn<Data>) => DropRequestSymbol | void;
+    (player: Player | Player[], data: Readonly<Data>, updateData: UpdateDataFn<Data>, getRawData: () => SerializedPacket) => DropRequestSymbol | void;
 
 export type ServerMiddleware<Data = unknown> =
   (message: BaseMessage) =>
-    (data: Readonly<Data>, updateData: UpdateDataFn<Data>) => DropRequestSymbol | void;
+    (data: Readonly<Data>, updateData: UpdateDataFn<Data>, getRawData: () => SerializedPacket) => DropRequestSymbol | void;
 
 export type SharedMiddleware = (message: BaseMessage) => () => DropRequestSymbol | void;
 export type Middleware<Data = unknown> = ServerMiddleware<Data> & ClientMiddleware<Data>;

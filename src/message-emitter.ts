@@ -77,13 +77,14 @@ export class MessageEmitter<MessageData> extends Destroyable {
    */
   public emitServer<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind], unreliable = false): void {
     const updateData = (newData?: MessageData[Kind]) => void (data = newData);
+    const getPacket = () => this.getPacket(message, data);
 
     for (const globalMiddleware of this.middleware.getServerGlobal<MessageData[Kind]>()) {
-      const result = globalMiddleware(message)(data!, updateData);
+      const result = globalMiddleware(message)(data!, updateData, getPacket);
       if (result === DropRequest) return;
     }
     for (const middleware of this.middleware.getServer(message)) {
-      const result = middleware(message)(data!, updateData);
+      const result = middleware(message)(data!, updateData, getPacket);
       if (result === DropRequest) return;
     }
 
@@ -91,7 +92,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
       ? this.clientEvents.sendUnreliableServerMessage
       : this.clientEvents.sendServerMessage;
 
-    send(this.getPacket(message, data));
+    send(getPacket());
   }
 
   /**
@@ -104,13 +105,14 @@ export class MessageEmitter<MessageData> extends Destroyable {
    */
   public emitClient<Kind extends keyof MessageData>(player: Player | Player[], message: Kind & BaseMessage, data?: MessageData[Kind], unreliable = false): void {
     const updateData = (newData?: MessageData[Kind]) => void (data = newData);
+    const getPacket = () => this.getPacket(message, data);
 
     for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>()) {
-      const result = globalMiddleware(message)(player, data!, updateData);
+      const result = globalMiddleware(message)(player, data!, updateData, getPacket);
       if (result === DropRequest) return;
     }
     for (const middleware of this.middleware.getClient(message)) {
-      const result = middleware(message)(player, data!, updateData);
+      const result = middleware(message)(player, data!, updateData, getPacket);
       if (result === DropRequest) return;
     }
 
@@ -118,7 +120,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
       ? this.serverEvents.sendUnreliableClientMessage
       : this.serverEvents.sendClientMessage;
 
-    send(player, this.getPacket(message, data));
+    send(player, getPacket());
   }
 
   /**
@@ -130,15 +132,16 @@ export class MessageEmitter<MessageData> extends Destroyable {
    */
   public emitAllClients<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind], unreliable = false): void {
     const updateData = (newData?: MessageData[Kind]) => void (data = newData);
+    const getPacket = () => this.getPacket(message, data);
 
     for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>())
       for (const player of Players.GetPlayers()) {
-        const result = globalMiddleware(message)(player, data!, updateData);
+        const result = globalMiddleware(message)(player, data!, updateData, getPacket);
         if (result === DropRequest) return;
       }
     for (const middleware of this.middleware.getClient(message))
       for (const player of Players.GetPlayers()) {
-        const result = middleware(message)(player, data!, updateData);
+        const result = middleware(message)(player, data!, updateData, getPacket);
         if (result === DropRequest) return;
       }
 
