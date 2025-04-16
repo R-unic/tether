@@ -19,6 +19,16 @@ const BLOB_SIZE = 5; // bytes
 
 export namespace BuiltinMiddlewares {
   /**
+   * Creates a shared middleware that will simulate a ping of the given amount when a message is sent
+   *
+   * @param pingInMs The amount of time in milliseconds that the middleware should wait
+   * @returns A shared middleware that will simulate a ping
+   */
+  export function simulatePing(pingInMs: number): SharedMiddleware {
+    return () => () => void task.wait(pingInMs / 1000);
+  }
+
+  /**
    * Creates a shared middleware that will drop any message that occurs within the given interval of the previous message
    *
    * @param interval The interval in seconds that the middleware should wait before allowing a new request
