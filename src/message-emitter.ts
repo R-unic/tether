@@ -99,21 +99,23 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const getPacket = () => this.getPacket(message, data);
 
     if (!this.validateData(message, data)) return;
-    for (const globalMiddleware of this.middleware.getServerGlobal<MessageData[Kind]>()) {
-      const result = globalMiddleware(message)(data!, updateData, getPacket);
-      if (result === DropRequest) return;
-    }
-    for (const middleware of this.middleware.getServer(message)) {
-      const result = middleware(message)(data!, updateData, getPacket);
-      if (result === DropRequest) return;
-    }
+    task.spawn(() => {
+      for (const globalMiddleware of this.middleware.getServerGlobal<MessageData[Kind]>()) {
+        const result = globalMiddleware(message)(data!, updateData, getPacket);
+        if (result === DropRequest) return;
+      }
+      for (const middleware of this.middleware.getServer(message)) {
+        const result = middleware(message)(data!, updateData, getPacket);
+        if (result === DropRequest) return;
+      }
 
-    if (!this.validateData(message, data)) return;
-    const send = unreliable
-      ? this.clientEvents.sendUnreliableServerMessage
-      : this.clientEvents.sendServerMessage;
+      if (!this.validateData(message, data)) return;
+      const send = unreliable
+        ? this.clientEvents.sendUnreliableServerMessage
+        : this.clientEvents.sendServerMessage;
 
-    send(getPacket());
+      send(getPacket());
+    });
   }
 
   private validateData(message: keyof MessageData & BaseMessage, data: unknown): boolean {
@@ -138,21 +140,23 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const getPacket = () => this.getPacket(message, data);
 
     if (!this.validateData(message, data)) return;
-    for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>()) {
-      const result = globalMiddleware(message)(player, data!, updateData, getPacket);
-      if (result === DropRequest) return;
-    }
-    for (const middleware of this.middleware.getClient(message)) {
-      const result = middleware(message)(player, data!, updateData, getPacket);
-      if (result === DropRequest) return;
-    }
+    task.spawn(() => {
+      for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>()) {
+        const result = globalMiddleware(message)(player, data!, updateData, getPacket);
+        if (result === DropRequest) return;
+      }
+      for (const middleware of this.middleware.getClient(message)) {
+        const result = middleware(message)(player, data!, updateData, getPacket);
+        if (result === DropRequest) return;
+      }
 
-    if (!this.validateData(message, data)) return;
-    const send = unreliable
-      ? this.serverEvents.sendUnreliableClientMessage
-      : this.serverEvents.sendClientMessage;
+      if (!this.validateData(message, data)) return;
+      const send = unreliable
+        ? this.serverEvents.sendUnreliableClientMessage
+        : this.serverEvents.sendClientMessage;
 
-    send(player, getPacket());
+      send(player, getPacket());
+    });
   }
 
   /**
@@ -167,23 +171,25 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const getPacket = () => this.getPacket(message, data);
 
     if (!this.validateData(message, data)) return;
-    for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>())
-      for (const player of Players.GetPlayers()) {
-        const result = globalMiddleware(message)(player, data!, updateData, getPacket);
-        if (result === DropRequest) return;
-      }
-    for (const middleware of this.middleware.getClient(message))
-      for (const player of Players.GetPlayers()) {
-        const result = middleware(message)(player, data!, updateData, getPacket);
-        if (result === DropRequest) return;
-      }
+    task.spawn(() => {
+      for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>())
+        for (const player of Players.GetPlayers()) {
+          const result = globalMiddleware(message)(player, data!, updateData, getPacket);
+          if (result === DropRequest) return;
+        }
+      for (const middleware of this.middleware.getClient(message))
+        for (const player of Players.GetPlayers()) {
+          const result = middleware(message)(player, data!, updateData, getPacket);
+          if (result === DropRequest) return;
+        }
 
-    if (!this.validateData(message, data)) return;
-    const send = unreliable
-      ? this.serverEvents.sendUnreliableClientMessage
-      : this.serverEvents.sendClientMessage;
+      if (!this.validateData(message, data)) return;
+      const send = unreliable
+        ? this.serverEvents.sendUnreliableClientMessage
+        : this.serverEvents.sendClientMessage;
 
-    send.broadcast(this.getPacket(message, data));
+      send.broadcast(this.getPacket(message, data));
+    });
   }
 
   private initialize(): this {
