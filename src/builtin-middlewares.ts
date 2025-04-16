@@ -1,19 +1,11 @@
 import { Modding } from "@flamework/core";
-import { DropRequest, type SharedMiddleware } from "./middleware";
-import { BaseMessage, type TetherPacket } from "./structs";
 import { RunService } from "@rbxts/services";
 import { repeatString } from "@rbxts/flamework-meta-utils";
 import type { SerializerMetadata } from "@rbxts/flamework-binary-serializer";
 import repr from "@rbxts/repr";
 
-type Guard<T> = (value: unknown) => value is T;
-
-const noOp = () => () => { };
-const validationGuardGenerationFailed = () =>
-  `[@rbxts/tether]: Failed to generate guard for validate<T>() builtin middleware - skipping validation`;
-
-const guardFailed = (message: BaseMessage) =>
-  `[@rbxts/tether]: Type validation guard failed for message '${tostring(message)}' - check your sent data`;
+import { DropRequest, type SharedMiddleware } from "./middleware";
+import type { TetherPacket } from "./structs";
 
 const BLOB_SIZE = 5; // bytes
 
@@ -43,32 +35,6 @@ export namespace BuiltinMiddlewares {
           return DropRequest;
 
         lastRequest = os.clock();
-      };
-  }
-
-  /**
-   * Creates a shared middleware that validates the data with the given guard (or a generated guard if none was provided)
-   *
-   * If the guard fails, the middleware will drop the message
-   *
-   * **Note: This middleware will only automatically generate a guard when it is not used globally.
-   * If you want to use it globally, provide a type argument to generate a guard for****
-   *
-   * @param guard The guard to use to validate the data.
-   * @returns A shared middleware that validates the data with the given guard.
-   * @metadata macro
-   */
-  export function validate<T>(guard?: Guard<T> | Modding.Generic<T, "guard">): SharedMiddleware<T> {
-    if (guard === undefined) {
-      warn(validationGuardGenerationFailed());
-      return noOp;
-    }
-
-    return message =>
-      data => {
-        if (guard(data)) return;
-        warn(guardFailed(message));
-        return DropRequest;
       };
   }
 

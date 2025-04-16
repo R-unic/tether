@@ -1,5 +1,5 @@
 # Tether
-A message-based networking solution for Roblox with automatic binary serialization.
+A message-based networking solution for Roblox with automatic binary serialization and type validation.
 
 > [!CAUTION]
 > Depends on `rbxts-transformer-flamework`!
@@ -107,16 +107,13 @@ export const messaging = MessageEmitter.create<MessageData>();
 messaging.middleware
   // only allows requests to the server every 5 seconds,
   // drops any requests that occur within 5 seconds of each other
-  .useServer(Message.Test, [BuiltinMiddlewares.rateLimit(5)]) 
-  // automatically validates that the data sent through the remote matches
-  // the data associated with the message at runtime using type guards
-  .useServer(Message.Test, [BuiltinMiddlewares.validate()])
+  .useServer(Message.Test, BuiltinMiddlewares.rateLimit(5)) 
   // logs every message fired
-  .useServerGlobal([logServer()])
-  .useClientGlobal([logClient()])
-  .useSharedGlobal([BuiltinMiddlewares.debug()]); // verbosely logs every packet sent
-  .useServer(Message.Test, [incrementNumberData()]) // error! - data for Message.Test is not a number 
-  .useServerGlobal([incrementNumberData()]); // error! - global data type is always 'unknown', we cannot guarantee a number
+  .useServerGlobal(logServer())
+  .useClientGlobal(logClient())
+  .useSharedGlobal(BuiltinMiddlewares.debug()); // verbosely logs every packet sent
+  .useServer(Message.Test, incrementNumberData()) // error! - data for Message.Test is not a number 
+  .useServerGlobal(incrementNumberData()); // error! - global data type is always 'unknown', we cannot guarantee a number
 
 export const enum Message {
   Test

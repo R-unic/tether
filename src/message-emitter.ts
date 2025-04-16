@@ -7,33 +7,51 @@ import Destroyable from "@rbxts/destroyable";
 import { DropRequest, MiddlewareProvider } from "./middleware";
 import type { TetherPacket, SerializedPacket, ClientEvents, ClientMessageCallback, ServerEvents, ServerMessageCallback, MessageCallback, BaseMessage } from "./structs";
 
-const GlobalEvents = Networking.createEvent<ServerEvents, ClientEvents>();
+const remotes = Networking.createEvent<ServerEvents, ClientEvents>();
+const metaGenerationFailed =
+  "[@rbxts/tether]: Failed to generate message metadata - make sure you are using Flamework macro-friendly types in your schemas";
+const guardFailed = (message: BaseMessage) =>
+  `[@rbxts/tether]: Type validation guard failed for message '${message}' - check your sent data`;
+
+interface MessageMetadata<MessageData, Kind extends keyof MessageData> {
+  readonly guard: Modding.Generic<MessageData[Kind], "guard">;
+  readonly serializerMetadata: MessageData[Kind] extends undefined
+  ? undefined
+  : Modding.Many<SerializerMetadata<TetherPacket<MessageData[Kind]>>>;
+}
+
+type Guard<T = unknown> = (value: unknown) => value is T;
+
+type MessageEmitterMetadata<MessageData> = {
+  [Kind in keyof MessageData]: MessageMetadata<MessageData, Kind>;
+};
+
 export class MessageEmitter<MessageData> extends Destroyable {
   public readonly middleware = new MiddlewareProvider<MessageData>;
 
   private readonly clientCallbacks = new Map<keyof MessageData, Set<ClientMessageCallback>>;
   private readonly serverCallbacks = new Map<keyof MessageData, Set<ServerMessageCallback>>;
+  private readonly guards = new Map<keyof MessageData, Guard>;
   private serializers: Partial<Record<keyof MessageData, Serializer<TetherPacket<MessageData[keyof MessageData]>>>> = {};
-  private serverEvents!: ReturnType<typeof GlobalEvents.createServer>;
-  private clientEvents!: ReturnType<typeof GlobalEvents.createClient>;
+  private serverEvents!: ReturnType<typeof remotes.createServer>;
+  private clientEvents!: ReturnType<typeof remotes.createClient>;
 
   /** @metadata macro */
   public static create<MessageData>(
-    metaForEachMessage?: Modding.Many<{
-      [Kind in keyof MessageData]: MessageData[Kind] extends undefined
-      ? undefined
-      : Modding.Many<SerializerMetadata<TetherPacket<MessageData[Kind]>>>
-    }>
+    meta?: Modding.Many<MessageEmitterMetadata<MessageData>>
   ): MessageEmitter<MessageData> {
     const emitter = new MessageEmitter<MessageData>;
-    if (metaForEachMessage === undefined) {
-      warn("[@rbxts/tether]: Failed to generate serializer metadata for MessageEmitter");
+    if (meta === undefined) {
+      warn(metaGenerationFailed);
       return emitter.initialize();
     }
 
-    for (const [kind, meta] of pairs(metaForEachMessage)) {
-      if (meta === undefined) continue;
-      emitter.addSerializer(tonumber(kind) as keyof MessageData & BaseMessage, meta as Modding.Many<SerializerMetadata<TetherPacket<MessageData[keyof MessageData]>>>);
+    type FuckYouPairs = Record<BaseMessage, MessageMetadata<Record<BaseMessage, unknown>, BaseMessage>>;
+    for (const [kind, { guard, serializerMetadata }] of pairs(meta as FuckYouPairs)) {
+      const numberKind = tonumber(kind) as keyof MessageData & BaseMessage;
+      emitter.guards.set(numberKind, guard);
+      if (serializerMetadata === undefined) continue;
+      emitter.addSerializer(numberKind, meta as never);
     }
 
     return emitter.initialize();
@@ -48,10 +66,11 @@ export class MessageEmitter<MessageData> extends Destroyable {
       this.serverEvents = undefined!;
       this.clientEvents = undefined!;
     });
+
     if (RunService.IsServer())
-      this.serverEvents = GlobalEvents.createServer({});
+      this.serverEvents = remotes.createServer({});
     else
-      this.clientEvents = GlobalEvents.createClient({});
+      this.clientEvents = remotes.createClient({});
   }
 
   /**.
@@ -79,6 +98,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const updateData = (newData?: MessageData[Kind]) => void (data = newData);
     const getPacket = () => this.getPacket(message, data);
 
+    if (!this.validateData(message, data)) return;
     for (const globalMiddleware of this.middleware.getServerGlobal<MessageData[Kind]>()) {
       const result = globalMiddleware(message)(data!, updateData, getPacket);
       if (result === DropRequest) return;
@@ -88,11 +108,21 @@ export class MessageEmitter<MessageData> extends Destroyable {
       if (result === DropRequest) return;
     }
 
+    if (!this.validateData(message, data)) return;
     const send = unreliable
       ? this.clientEvents.sendUnreliableServerMessage
       : this.clientEvents.sendServerMessage;
 
     send(getPacket());
+  }
+
+  private validateData(message: keyof MessageData & BaseMessage, data: unknown): boolean {
+    const guard = this.guards.get(message)!;
+    const guardPassed = guard(data);
+    if (!guardPassed)
+      warn(guardFailed(message));
+
+    return guardPassed
   }
 
   /**
@@ -107,6 +137,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const updateData = (newData?: MessageData[Kind]) => void (data = newData);
     const getPacket = () => this.getPacket(message, data);
 
+    if (!this.validateData(message, data)) return;
     for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>()) {
       const result = globalMiddleware(message)(player, data!, updateData, getPacket);
       if (result === DropRequest) return;
@@ -116,6 +147,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
       if (result === DropRequest) return;
     }
 
+    if (!this.validateData(message, data)) return;
     const send = unreliable
       ? this.serverEvents.sendUnreliableClientMessage
       : this.serverEvents.sendClientMessage;
@@ -134,6 +166,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const updateData = (newData?: MessageData[Kind]) => void (data = newData);
     const getPacket = () => this.getPacket(message, data);
 
+    if (!this.validateData(message, data)) return;
     for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>())
       for (const player of Players.GetPlayers()) {
         const result = globalMiddleware(message)(player, data!, updateData, getPacket);
@@ -145,6 +178,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
         if (result === DropRequest) return;
       }
 
+    if (!this.validateData(message, data)) return;
     const send = unreliable
       ? this.serverEvents.sendUnreliableClientMessage
       : this.serverEvents.sendClientMessage;

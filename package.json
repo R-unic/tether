@@ -20,7 +20,7 @@
   },
   "author": "runicly",
   "license": "ISC",
-  "description": "A message-based networking solution for Roblox with automatic binary serialization",
+  "description": "A message-based networking solution for Roblox with automatic binary serialization and type validation",
   "types": "out/index.d.ts",
   "files": [
     "out",
