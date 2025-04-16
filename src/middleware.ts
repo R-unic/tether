@@ -6,19 +6,18 @@ type DropRequestSymbol = symbol & { _drop_req?: undefined };
 export const DropRequest = newproxy<DropRequestSymbol>();
 
 type UpdateDataFn<T> = (newData: T) => void;
-export type ClientMiddleware<Data = unknown> =
-  (message: BaseMessage) =>
-    (player: Player | Player[], data: Readonly<Data>, updateData: UpdateDataFn<Data>, getRawData: () => SerializedPacket) => DropRequestSymbol | void;
+type GetRawDataFn = () => SerializedPacket;
+export type ClientMiddleware<Data = unknown> = { _client?: void }
+  & ((message: BaseMessage) =>
+    (player: Player | Player[], data: Readonly<Data>, updateData: UpdateDataFn<Data>, getRawData: GetRawDataFn) => DropRequestSymbol | void);
 
-export type ServerMiddleware<Data = unknown> =
-  (message: BaseMessage) =>
-    (data: Readonly<Data>, updateData: UpdateDataFn<Data>, getRawData: () => SerializedPacket) => DropRequestSymbol | void;
+export type ServerMiddleware<Data = unknown> = SharedMiddleware<Data> & { _server?: void };
 
-export type SharedMiddleware =
+export type SharedMiddleware<Data = unknown> =
   (message: BaseMessage) =>
-    (data: unknown, updateData: UpdateDataFn<unknown>, getRawData: () => SerializedPacket) => DropRequestSymbol | void;
+    (data: Readonly<Data>, updateData: UpdateDataFn<Data>, getRawData: GetRawDataFn) => DropRequestSymbol | void;
 
-export type Middleware<Data = unknown> = ServerMiddleware<Data> & ClientMiddleware<Data>;
+export type Middleware<Data = unknown> = ServerMiddleware<Data> & ClientMiddleware<Data> & SharedMiddleware<Data>;
 
 export class MiddlewareProvider<MessageData> {
   private readonly clientGlobalMiddlewares: Middleware[] = [];
@@ -84,7 +83,7 @@ export class MiddlewareProvider<MessageData> {
 
   public useShared<Kind extends keyof MessageData>(
     message: Kind & BaseMessage,
-    middlewares: SharedMiddleware | readonly SharedMiddleware[],
+    middlewares: SharedMiddleware<MessageData[Kind]> | readonly SharedMiddleware<MessageData[Kind]>[],
     order?: number
   ): this {
     const server = middlewares as ServerMiddleware<MessageData[Kind]> | ServerMiddleware<MessageData[Kind]>[];
