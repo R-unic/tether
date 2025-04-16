@@ -53,12 +53,12 @@ export class MiddlewareProvider<MessageData> {
 
   public useClient<Kind extends keyof MessageData>(
     message: Kind & BaseMessage,
-    middlewares: ClientMiddleware<MessageData[Kind]> | readonly ClientMiddleware<MessageData[Kind]>[],
+    middlewares: ClientMiddleware<MessageData[Kind]> | readonly ClientMiddleware<MessageData[Kind]>[] | ClientMiddleware | readonly ClientMiddleware[],
     order?: number
   ): this {
     const messageMiddleware = this.getClient(message);
     if (typeIs(middlewares, "function"))
-      messageMiddleware.insert(order ?? messageMiddleware.size() - 1, middlewares);
+      messageMiddleware.insert(order ?? messageMiddleware.size() - 1, middlewares as never);
     else
       for (const middleware of middlewares)
         this.useClient(message, middleware, order);
@@ -68,12 +68,12 @@ export class MiddlewareProvider<MessageData> {
 
   public useServer<Kind extends keyof MessageData>(
     message: Kind & BaseMessage,
-    middlewares: ServerMiddleware<MessageData[Kind]> | readonly ServerMiddleware<MessageData[Kind]>[],
+    middlewares: ServerMiddleware<MessageData[Kind]> | readonly ServerMiddleware<MessageData[Kind]>[] | ServerMiddleware | readonly ServerMiddleware[],
     order?: number
   ): this {
     const messageMiddleware = this.getServer(message);
     if (typeIs(middlewares, "function"))
-      messageMiddleware.insert(order ?? messageMiddleware.size() - 1, middlewares);
+      messageMiddleware.insert(order ?? messageMiddleware.size() - 1, middlewares as never);
     else
       for (const middleware of middlewares)
         this.useServer(message, middleware, order);
@@ -83,7 +83,7 @@ export class MiddlewareProvider<MessageData> {
 
   public useShared<Kind extends keyof MessageData>(
     message: Kind & BaseMessage,
-    middlewares: SharedMiddleware<MessageData[Kind]> | readonly SharedMiddleware<MessageData[Kind]>[],
+    middlewares: SharedMiddleware<MessageData[Kind]> | readonly SharedMiddleware<MessageData[Kind]>[] | SharedMiddleware | readonly SharedMiddleware[],
     order?: number
   ): this {
     const server = middlewares as ServerMiddleware<MessageData[Kind]> | ServerMiddleware<MessageData[Kind]>[];

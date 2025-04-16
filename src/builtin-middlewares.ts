@@ -50,6 +50,7 @@ export namespace BuiltinMiddlewares {
    * Creates a shared middleware that validates the data with the given guard (or a generated guard if none was provided)
    *
    * If the guard fails, the middleware will drop the message
+   *
    * **Note: This middleware will only automatically generate a guard when it is not used globally.
    * If you want to use it globally, provide a type argument to generate a guard for****
    *
