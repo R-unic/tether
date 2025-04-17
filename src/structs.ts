@@ -1,5 +1,6 @@
+import { Modding } from "@flamework/core";
 import type { Networking } from "@flamework/networking";
-import type { DataType } from "@rbxts/flamework-binary-serializer";
+import type { DataType, SerializerMetadata } from "@rbxts/flamework-binary-serializer";
 
 export type MessageCallback<T = unknown> = ServerMessageCallback<T> | ClientMessageCallback<T>;
 export type ClientMessageCallback<T = unknown> = (data: T) => void;
@@ -28,3 +29,11 @@ export interface ClientEvents {
   sendClientMessage: MessageEvent;
   sendUnreliableClientMessage: UnreliableMessageEvent;
 }
+export interface MessageMetadata<MessageData, Kind extends keyof MessageData> {
+  readonly guard: Modding.Generic<MessageData[Kind], "guard">;
+  readonly serializerMetadata: MessageData[Kind] extends undefined ? undefined : Modding.Many<SerializerMetadata<TetherPacket<MessageData[Kind]>>>;
+}
+export type Guard<T = unknown> = (value: unknown) => value is T;
+export type MessageEmitterMetadata<MessageData> = {
+  [Kind in keyof MessageData]: MessageMetadata<MessageData, Kind>;
+};

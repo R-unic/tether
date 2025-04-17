@@ -14,7 +14,8 @@ import { MessageEmitter } from "@rbxts/tether";
 export const messaging = MessageEmitter.create<MessageData>();
 
 export const enum Message {
-  Test
+  Test,
+  Packed
 }
 
 export interface MessageData {
@@ -22,6 +23,16 @@ export interface MessageData {
     readonly foo: string;
     readonly n: DataType.u8;
   };
+  [Message.Packed]: DataType.Packed<{
+    boolean1: boolean;
+    boolean2: boolean;
+    boolean3: boolean;
+    boolean4: boolean;
+    boolean5: boolean;
+    boolean6: boolean;
+    boolean7: boolean;
+    boolean8: boolean;
+  }>;
 }
 ```
 
@@ -32,7 +43,7 @@ export interface MessageData {
 ```ts
 import { Message, messaging } from "shared/messaging";
 
-messaging.onServerMessage(Message.Test, (player, data) => {
+messaging.server.on(Message.Test, (player, data) => {
   print(player, "sent data:", data);
 });
 ```
@@ -41,7 +52,7 @@ messaging.onServerMessage(Message.Test, (player, data) => {
 ```ts
 import { Message, messaging } from "shared/messaging";
 
-messaging.emitServer(Message.Test, {
+messaging.server.emit(Message.Test, {
   foo: "bar",
   n: 69
 });
@@ -108,6 +119,7 @@ messaging.middleware
   // only allows requests to the server every 5 seconds,
   // drops any requests that occur within 5 seconds of each other
   .useServer(Message.Test, BuiltinMiddlewares.rateLimit(5)) 
+  .useShared(Message.Packed, () => (_, __, getRawData) => print("Packed object size:", buffer.len(getRawData()))); // will be just one byte!
   // logs every message fired
   .useServerGlobal(logServer())
   .useClientGlobal(logClient())
@@ -116,7 +128,8 @@ messaging.middleware
   .useServerGlobal(incrementNumberData()); // error! - global data type is always 'unknown', we cannot guarantee a number
 
 export const enum Message {
-  Test
+  Test,
+  Packed
 }
 
 export interface MessageData {
@@ -124,5 +137,15 @@ export interface MessageData {
     readonly foo: string;
     readonly n: DataType.u8;
   };
+  [Message.Packed]: DataType.Packed<{
+    boolean1: boolean;
+    boolean2: boolean;
+    boolean3: boolean;
+    boolean4: boolean;
+    boolean5: boolean;
+    boolean6: boolean;
+    boolean7: boolean;
+    boolean8: boolean;
+  }>;
 }
 ```
