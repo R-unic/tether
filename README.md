@@ -184,14 +184,14 @@ export interface MessageData {
     readonly n: DataType.u8;
   };
   [Message.Packed]: DataType.Packed<{
-    boolean1: boolean;
-    boolean2: boolean;
-    boolean3: boolean;
-    boolean4: boolean;
-    boolean5: boolean;
-    boolean6: boolean;
-    boolean7: boolean;
-    boolean8: boolean;
+    readonly boolean1: boolean;
+    readonly boolean2: boolean;
+    readonly boolean3: boolean;
+    readonly boolean4: boolean;
+    readonly boolean5: boolean;
+    readonly boolean6: boolean;
+    readonly boolean7: boolean;
+    readonly boolean8: boolean;
   }>;
 }
 ```
