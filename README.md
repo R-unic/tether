@@ -61,6 +61,8 @@ messaging.server.emit(Message.Test, {
 ## Simulated Remote Functions
 Tether does not directly use RemoteFunctions since it's based on the MessageEmitter structure. However I have created a small framework to simulate remote functions, as shown below.
 
+For each function you will need two messages. One to invoke the function, and one to send the return value back (which is done automatically).
+
 ### In `shared/messaging.ts`
 ```ts
 import type { DataType } from "@rbxts/flamework-binary-serializer";
@@ -69,25 +71,13 @@ import { MessageEmitter } from "@rbxts/tether";
 export const messaging = MessageEmitter.create<MessageData>();
 
 export const enum Message {
-  Test,
-  Packed
+  Increment,
+  IncrementReturn
 }
 
 export interface MessageData {
-  [Message.Test]: {
-    readonly foo: string;
-    readonly n: DataType.u8;
-  };
-  [Message.Packed]: DataType.Packed<{
-    boolean1: boolean;
-    boolean2: boolean;
-    boolean3: boolean;
-    boolean4: boolean;
-    boolean5: boolean;
-    boolean6: boolean;
-    boolean7: boolean;
-    boolean8: boolean;
-  }>;
+  [Message.Increment]: DataType.u8;
+  [Message.IncrementReturn]: DataType.u8;
 }
 ```
 
@@ -95,19 +85,24 @@ export interface MessageData {
 ```ts
 import { Message, messaging } from "shared/messaging";
 
-messaging.server.on(Message.Test, (player, data) => {
-  print(player, "sent data:", data);
-});
+messaging.server.setCallback(Message.Increment, Message.IncrementReturn, (_, n) => n + 1);
 ```
 
 ### Client
 ```ts
 import { Message, messaging } from "shared/messaging";
 
-messaging.server.emit(Message.Test, {
-  foo: "bar",
-  n: 69
-});
+messaging.server
+  .invoke(Message.Increment, Message.IncrementReturn, 69)
+  .then(print); // 70 - incremented by the server
+
+// or use await style
+async function main(): Promise<void> {
+  const value = await messaging.server.invoke(Message.Increment, Message.IncrementReturn, 69);
+  print(value) // 70
+}
+
+main();
 ```
 
 ## Middleware
