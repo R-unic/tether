@@ -24,28 +24,26 @@ export interface MessageData {
     readonly n: DataType.u8;
   };
   [Message.Packed]: DataType.Packed<{
-    boolean1: boolean;
-    boolean2: boolean;
-    boolean3: boolean;
-    boolean4: boolean;
-    boolean5: boolean;
-    boolean6: boolean;
-    boolean7: boolean;
-    boolean8: boolean;
+    readonly boolean1: boolean;
+    readonly boolean2: boolean;
+    readonly boolean3: boolean;
+    readonly boolean4: boolean;
+    readonly boolean5: boolean;
+    readonly boolean6: boolean;
+    readonly boolean7: boolean;
+    readonly boolean8: boolean;
   }>;
 }
 ```
 
 > [!CAUTION]
-> Every single message kind must implement an interface for it's data (in the example that would be the object with the `foo` and `bar` fields). Message serialization (as well as your message itself) will not work if you don't do this.
+> Every single message kind must implement an interface for it's data (in the example that would be the object types in `MessageData`). Message serialization (as well as your message itself) will not work if you don't do this.
 
 ### Server
 ```ts
 import { Message, messaging } from "shared/messaging";
 
-messaging.server.on(Message.Test, (player, data) => {
-  print(player, "sent data:", data);
-});
+messaging.server.on(Message.Test, (player, data) => print(player, "sent data:", data));
 ```
 
 ### Client
@@ -166,7 +164,8 @@ messaging.middleware
   // only allows requests to the server every 5 seconds,
   // drops any requests that occur within 5 seconds of each other
   .useServer(Message.Test, BuiltinMiddlewares.rateLimit(5)) 
-  .useShared(Message.Packed, () => (_, __, getRawData) => print("Packed object size:", buffer.len(getRawData()))); // will be just one byte!
+  // will be just one byte!
+  .useShared(Message.Packed, () => (_, __, getRawData) => print("Packed object size:", buffer.len(getRawData())));
   // logs every message fired
   .useServerGlobal(logServer())
   .useClientGlobal(logClient())
