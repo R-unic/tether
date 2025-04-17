@@ -16,8 +16,12 @@ import type {
   BaseMessage,
   Guard,
   MessageEmitterMetadata,
-  MessageMetadata
+  MessageMetadata,
+  ClientMessageFunctionCallback,
+  ServerMessageFunctionCallback
 } from "./structs";
+
+// TODO: error when trying to do something like server.emit() from the server
 
 const remotes = Networking.createEvent<ServerEvents, ClientEvents>();
 const metaGenerationFailed =
@@ -29,7 +33,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
   public readonly middleware = new MiddlewareProvider<MessageData>;
 
   private readonly clientCallbacks = new Map<keyof MessageData, Set<ClientMessageCallback>>;
+  private readonly clientFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
   private readonly serverCallbacks = new Map<keyof MessageData, Set<ServerMessageCallback>>;
+  private readonly serverFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
   private readonly guards = new Map<keyof MessageData, Guard>;
   private serializers: Partial<Record<keyof MessageData, Serializer<TetherPacket<MessageData[keyof MessageData]>>>> = {};
   private serverEvents!: ReturnType<typeof remotes.createServer>;
@@ -73,14 +79,14 @@ export class MessageEmitter<MessageData> extends Destroyable {
   }
 
   public readonly server = {
-    /**.
+    /**
      * @returns A destructor function that disconnects the callback from the message
      */
     on: <Kind extends keyof MessageData>(
       message: Kind & BaseMessage,
       callback: ServerMessageCallback<MessageData[Kind]>
-    ) => this.on(message, callback),
-    /**.
+    ) => this.on(message, callback, this.serverCallbacks),
+    /**
      * Disconnects the callback as soon as it is called for the first time
      *
      * @returns A destructor function that disconnects the callback from the message
@@ -88,7 +94,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     once: <Kind extends keyof MessageData>(
       message: Kind & BaseMessage,
       callback: ServerMessageCallback<MessageData[Kind]>
-    ) => this.once(message, callback),
+    ) => this.once(message, callback, this.serverCallbacks),
     /**
      * Emits a message to the server
      *
@@ -120,18 +126,58 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
         send(getPacket());
       });
-    }
+    },
+
+    /**
+     * Simulates a remote function invocation.
+     *
+     * @param message The message kind to be sent
+     * @param data The data associated with the message
+     * @param unreliable Whether the message should be sent unreliably
+     */
+    invoke: async <Kind extends keyof MessageData, ReturnKind extends keyof MessageData>(
+      message: Kind & BaseMessage,
+      returnMessage: ReturnKind & BaseMessage,
+      data?: MessageData[Kind],
+      unreliable = false
+    ): Promise<MessageData[ReturnKind]> => {
+      if (!this.clientFunctions.has(returnMessage))
+        this.clientFunctions.set(returnMessage, new Set);
+
+      const functions = this.clientFunctions.get(returnMessage)!;
+      let returnValue: MessageData[ReturnKind] | undefined;
+      functions.add(data => returnValue = data as never);
+      this.server.emit(message, data, unreliable);
+
+      while (returnValue === undefined)
+        RunService.Heartbeat.Wait();
+
+      return returnValue;
+    },
+    /**
+     * Sets a callback for a simulated remote function
+     *
+     * @returns A destructor function that disconnects the callback from the message
+     */
+    setCallback: <Kind extends keyof MessageData, ReturnKind extends keyof MessageData>(
+      message: Kind & BaseMessage,
+      returnMessage: ReturnKind & BaseMessage,
+      callback: ServerMessageFunctionCallback<MessageData[Kind], MessageData[ReturnKind]>
+    ) => this.server.on(message, (player, data) => {
+      const returnValue = callback(player, data);
+      this.client.emit(player, returnMessage, returnValue);
+    })
   };
 
   public readonly client = {
-    /**.
+    /**
      * @returns A destructor function that disconnects the callback from the message
      */
     on: <Kind extends keyof MessageData>(
       message: Kind & BaseMessage,
       callback: ClientMessageCallback<MessageData[Kind]>
-    ) => this.on(message, callback),
-    /**.
+    ) => this.on(message, callback, this.clientCallbacks),
+    /**
      * Disconnects the callback as soon as it is called for the first time
      *
      * @returns A destructor function that disconnects the callback from the message
@@ -139,7 +185,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     once: <Kind extends keyof MessageData>(
       message: Kind & BaseMessage,
       callback: ClientMessageCallback<MessageData[Kind]>
-    ) => this.once(message, callback),
+    ) => this.once(message, callback, this.clientCallbacks),
     /**
      * Emits a message to a specific client
      *
@@ -206,7 +252,48 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
         send.broadcast(getPacket());
       });
-    }
+    },
+
+    /**
+     * Simulates a remote function invocation.
+     *
+     * @param message The message kind to be sent
+     * @param data The data associated with the message
+     * @param unreliable Whether the message should be sent unreliably
+     */
+    invoke: async <Kind extends keyof MessageData, ReturnKind extends keyof MessageData>(
+      message: Kind & BaseMessage,
+      returnMessage: ReturnKind & BaseMessage,
+      player: Player,
+      data?: MessageData[Kind],
+      unreliable = false
+    ): Promise<MessageData[ReturnKind]> => {
+      if (!this.serverFunctions.has(returnMessage))
+        this.serverFunctions.set(returnMessage, new Set);
+
+      const functions = this.serverFunctions.get(returnMessage)!;
+      let returnValue: MessageData[ReturnKind] | undefined;
+      functions.add(data => returnValue = data as never);
+      this.client.emit(player, message, data, unreliable);
+
+      while (returnValue === undefined)
+        RunService.Heartbeat.Wait();
+
+      return returnValue;
+    },
+    /**
+     * Sets a callback for a simulated remote function
+     *
+     * @returns A destructor function that disconnects the callback from the message
+     */
+    setCallback: <Kind extends keyof MessageData, ReturnKind extends keyof MessageData>(
+      message: Kind & BaseMessage,
+      returnMessage: ReturnKind & BaseMessage,
+      callback: ClientMessageFunctionCallback<MessageData[Kind], MessageData[ReturnKind]>
+    ) => this.client.on(message, data => {
+      const returnValue = callback(data);
+      this.server.emit(returnMessage, returnValue);
+    }),
   };
 
   private validateData(message: keyof MessageData & BaseMessage, data: unknown): boolean {
@@ -222,12 +309,14 @@ export class MessageEmitter<MessageData> extends Destroyable {
     if (RunService.IsClient())
       this.janitor.Add(this.clientEvents.sendClientMessage.connect(serializedPacket => {
         const sentMessage = this.readMessageFromPacket(serializedPacket);
-        this.executeCallbacks(sentMessage, serializedPacket);
+        this.executeEventCallbacks(sentMessage, serializedPacket);
+        this.executeFunctions(sentMessage, serializedPacket);
       }));
     else
       this.janitor.Add(this.serverEvents.sendServerMessage.connect((player, serializedPacket) => {
         const sentMessage = this.readMessageFromPacket(serializedPacket);
-        this.executeCallbacks(sentMessage, serializedPacket, player);
+        this.executeEventCallbacks(sentMessage, serializedPacket, player);
+        this.executeFunctions(sentMessage, serializedPacket);
       }));
 
     return this;
@@ -237,22 +326,51 @@ export class MessageEmitter<MessageData> extends Destroyable {
     return buffer.readu8(serializedPacket.buffer, 0) as never;
   }
 
-  private executeCallbacks(message: keyof MessageData & BaseMessage, serializedPacket: SerializedPacket, player?: Player): void {
-    const callbacksMap = RunService.IsServer() ? this.serverCallbacks : this.clientCallbacks;
-    const messageCallbacks: Set<MessageCallback> | undefined = callbacksMap.get(message);
-    if (messageCallbacks === undefined) return;
+  private executeFunctions(message: keyof MessageData & BaseMessage, serializedPacket: SerializedPacket): void {
+    const isServer = RunService.IsServer();
+    const functionsMap = isServer ? this.serverFunctions : this.clientFunctions;
+    const functions = functionsMap.get(message);
+    if (functions === undefined) return;
 
     const serializer = this.getSerializer(message);
     const packet = serializer?.deserialize(serializedPacket.buffer, serializedPacket.blobs);
-    for (const callback of messageCallbacks)
-      if (Flamework.createGuard<ServerMessageCallback>()(callback))
+    for (const callback of functions)
+      callback(packet?.data);
+  }
+
+  private executeEventCallbacks(message: keyof MessageData & BaseMessage, serializedPacket: SerializedPacket, player?: Player): void {
+    const isServer = RunService.IsServer();
+    const callbacksMap = isServer ? this.serverCallbacks : this.clientCallbacks;
+    const callbacks: Set<MessageCallback> | undefined = callbacksMap.get(message);
+    if (callbacks === undefined) return;
+
+    const serializer = this.getSerializer(message);
+    const packet = serializer?.deserialize(serializedPacket.buffer, serializedPacket.blobs);
+    for (const callback of callbacks)
+      if (isServer)
         callback(player!, packet?.data);
       else
         (callback as ClientMessageCallback)(packet?.data); // why doesn't it infer this?!?!?!
   }
 
-  private on<Kind extends keyof MessageData>(message: Kind, callback: MessageCallback<MessageData[Kind]>): () => void {
-    const callbacksMap = RunService.IsServer() ? this.serverCallbacks : this.clientCallbacks;
+  private once<Kind extends keyof MessageData>(
+    message: Kind,
+    callback: MessageCallback<MessageData[Kind]>,
+    callbacksMap: Map<keyof MessageData, Set<MessageCallback>>
+  ): () => void {
+    const destructor = this.on(message, (player, data) => {
+      destructor();
+      (callback as MessageCallback)(player, data);
+    }, callbacksMap);
+
+    return destructor;
+  }
+
+  private on<Kind extends keyof MessageData>(
+    message: Kind,
+    callback: MessageCallback<MessageData[Kind]>,
+    callbacksMap: Map<keyof MessageData, Set<MessageCallback>>
+  ): () => void {
     if (!callbacksMap.has(message))
       callbacksMap.set(message, new Set);
 
@@ -260,21 +378,6 @@ export class MessageEmitter<MessageData> extends Destroyable {
     callbacks.add(callback as MessageCallback);
     callbacksMap.set(message, callbacks);
     return () => callbacks.delete(callback as MessageCallback);
-  }
-
-  private once<Kind extends keyof MessageData>(message: Kind, callback: MessageCallback<MessageData[Kind]>): () => void {
-    const callbacksMap = RunService.IsServer() ? this.serverCallbacks : this.clientCallbacks;
-    if (!callbacksMap.has(message))
-      callbacksMap.set(message, new Set);
-
-    const callbacks: Set<MessageCallback> = callbacksMap.get(message)!;
-    const destructor = () => callbacks.delete(callback as MessageCallback);
-    callbacks.add((player, data) => {
-      (callback as MessageCallback)(player, data);
-      destructor();
-    });
-    callbacksMap.set(message, callbacks);
-    return destructor;
   }
 
   private getPacket<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind]): SerializedPacket {

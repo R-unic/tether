@@ -6,6 +6,7 @@ import repr from "@rbxts/repr";
 
 import { DropRequest, type SharedMiddleware } from "./middleware";
 import type { TetherPacket } from "./structs";
+import { Any } from "ts-toolbelt";
 
 const BLOB_SIZE = 5; // bytes
 
@@ -64,7 +65,7 @@ export namespace BuiltinMiddlewares {
    * @returns A shared middleware that will log a message whenever a message is sent.
    * @metadata macro
    */
-  export function debug<T>(schema?: Modding.Many<SerializerMetadata<TetherPacket<T>>>): SharedMiddleware<T> {
+  export function debug<T>(schema?: Modding.Many<Any.Equals<T, unknown> extends 1 ? undefined : SerializerMetadata<TetherPacket<T>>>): SharedMiddleware<T> {
     return message =>
       (data, _, getRawData) => {
         const rawData = getRawData();
@@ -79,7 +80,7 @@ export namespace BuiltinMiddlewares {
           horizontalLine, "\n",
           "Packet sent to ", (RunService.IsServer() ? "client" : "server"), "!\n",
           " - Message: ", message, "\n",
-          " - Data: ", data, "\n",
+          " - Data: ", data === undefined ? "undefined" : data, "\n",
           " - Raw data:\n",
           "   - Buffer: ", bufferToString(rawData.buffer), "\n",
           "   - Blobs: ", repr(rawData.blobs, { pretty: false, robloxClassName: true }), "\n",

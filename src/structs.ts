@@ -4,7 +4,9 @@ import type { DataType, SerializerMetadata } from "@rbxts/flamework-binary-seria
 
 export type MessageCallback<T = unknown> = ServerMessageCallback<T> | ClientMessageCallback<T>;
 export type ClientMessageCallback<T = unknown> = (data: T) => void;
+export type ClientMessageFunctionCallback<T = unknown, R = unknown> = (data: T) => R;
 export type ServerMessageCallback<T = unknown> = (player: Player, data: T) => void;
+export type ServerMessageFunctionCallback<T = unknown, R = unknown> = (player: Player, data: T) => R;
 export type BaseMessage = number;
 
 export interface SerializedPacket {
