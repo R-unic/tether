@@ -22,6 +22,25 @@ export namespace BuiltinMiddlewares {
   }
 
   /**
+   * Creates a shared middleware that will check if a message packet exceeds the given maximum size in bytes
+   *
+   * @param maxBytes The maximum size of the packet in bytes
+   * @param throwError Whether the middleware should throw an error if the packet exceeds the maximum size, or simply drop the request
+   * @returns A shared middleware that will check if a message packet exceeds the given maximum size
+   */
+  export function maxPacketSize(maxBytes: number, throwError = true): SharedMiddleware {
+    return message =>
+      ctx => {
+        const rawData = ctx.getRawData();
+        const totalSize = buffer.len(rawData.buffer) + rawData.blobs.size() * BLOB_SIZE;
+        if (totalSize > maxBytes)
+          return throwError
+            ? error(`[@rbxts/tether]: Message '${message}' exceeded maximum packet size of ${maxBytes} bytes`)
+            : DropRequest;
+      };
+  }
+
+  /**
    * Creates a shared middleware that will drop any message that occurs within the given interval of the previous message
    *
    * @param interval The interval in seconds that the middleware should wait before allowing a new request
