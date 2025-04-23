@@ -5,19 +5,22 @@ declare function newproxy<T extends symbol = symbol>(): T;
 type DropRequestSymbol = symbol & { _drop_req?: undefined };
 export const DropRequest = newproxy<DropRequestSymbol>();
 
-type UpdateDataFn<T> = (newData: T) => void;
-type GetRawDataFn = () => SerializedPacket;
 export type ClientMiddleware<Data = unknown> = { _client?: void }
   & ((message: BaseMessage) =>
-    (player: Player | Player[], data: Readonly<Data>, updateData: UpdateDataFn<Data>, getRawData: GetRawDataFn) => DropRequestSymbol | void);
+    (player: Player | Player[], ctx: MiddlewareContext<Data>) => DropRequestSymbol | void);
 
-export type ServerMiddleware<Data = unknown> = SharedMiddleware<Data> & { _server?: void };
+export type ServerMiddleware<Data = unknown> = { _server?: void } & SharedMiddleware<Data>;
 
 export type SharedMiddleware<Data = unknown> =
   (message: BaseMessage) =>
-    (data: Readonly<Data>, updateData: UpdateDataFn<Data>, getRawData: GetRawDataFn) => DropRequestSymbol | void;
+    (ctx: MiddlewareContext<Data>) => DropRequestSymbol | void;
 
 export type Middleware<Data = unknown> = ServerMiddleware<Data> & ClientMiddleware<Data> & SharedMiddleware<Data>;
+export interface MiddlewareContext<Data = unknown> {
+  readonly data: Readonly<Data>;
+  updateData: (newData: Data) => void;
+  getRawData: () => SerializedPacket;
+}
 
 export class MiddlewareProvider<MessageData> {
   private readonly clientGlobalMiddlewares: Middleware[] = [];
@@ -90,8 +93,8 @@ export class MiddlewareProvider<MessageData> {
     const client = (typeIs(middlewares, "function") ? [middlewares] : middlewares)
       .map<ClientMiddleware<MessageData[Kind]>>(middleware =>
         message =>
-          (_, data, updateData, getRawData) =>
-            middleware(message)(data, updateData as UpdateDataFn<unknown>, getRawData));
+          (_, ctx) => middleware(message)(ctx as never)
+      );
 
     this.useServer(message, server, order);
     this.useClient(message, client, order);
@@ -133,8 +136,7 @@ export class MiddlewareProvider<MessageData> {
     const client = (typeIs(middlewares, "function") ? [middlewares] : middlewares)
       .map<ClientMiddleware>(middleware =>
         message =>
-          (_, data, updateData, getRawData) =>
-            middleware(message)(data, updateData as UpdateDataFn<unknown>, getRawData));
+          (_, ctx) => middleware(message)(ctx));
 
     this.useClientGlobal(client, order);
     this.useServerGlobal(middlewares, order);

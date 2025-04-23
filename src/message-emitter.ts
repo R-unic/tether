@@ -4,7 +4,7 @@ import { createBinarySerializer, type Serializer, type SerializerMetadata } from
 import { Players, RunService } from "@rbxts/services";
 import Destroyable from "@rbxts/destroyable";
 
-import { DropRequest, MiddlewareProvider } from "./middleware";
+import { DropRequest, MiddlewareContext, MiddlewareProvider } from "./middleware";
 import type {
   TetherPacket,
   SerializedPacket,
@@ -37,7 +37,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
   private readonly serverCallbacks = new Map<keyof MessageData, Set<ServerMessageCallback>>;
   private readonly serverFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
   private readonly guards = new Map<keyof MessageData, Guard>;
-  private serializers: Partial<Record<keyof MessageData, Serializer<TetherPacket<MessageData[keyof MessageData]>>>> = {};
+  private readonly serializers: Partial<Record<keyof MessageData, Serializer<TetherPacket<MessageData[keyof MessageData]>>>> = {};
   private serverEvents!: ReturnType<typeof remotes.createServer>;
   private clientEvents!: ReturnType<typeof remotes.createClient>;
 
@@ -51,8 +51,8 @@ export class MessageEmitter<MessageData> extends Destroyable {
       return emitter.initialize();
     }
 
-    type FuckYouPairs = Record<BaseMessage, MessageMetadata<Record<BaseMessage, unknown>, BaseMessage>>;
-    for (const [kind, { guard, serializerMetadata }] of pairs(meta as FuckYouPairs)) {
+    type SorryLittensy = Record<BaseMessage, MessageMetadata<Record<BaseMessage, unknown>, BaseMessage>>;
+    for (const [kind, { guard, serializerMetadata }] of pairs(meta as SorryLittensy)) {
       const numberKind = tonumber(kind) as keyof MessageData & BaseMessage;
       emitter.guards.set(numberKind, guard);
       if (serializerMetadata === undefined) continue;
@@ -67,7 +67,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     this.janitor.Add(() => {
       this.clientCallbacks.clear();
       this.serverCallbacks.clear();
-      this.serializers = undefined!;
+      table.clear(this.serializers);
       this.serverEvents = undefined!;
       this.clientEvents = undefined!;
     });
@@ -108,14 +108,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
       if (!this.validateData(message, data)) return;
       task.spawn(() => {
+        const ctx: MiddlewareContext<MessageData[Kind]> = { data: data!, updateData, getRawData: getPacket };
         for (const globalMiddleware of this.middleware.getServerGlobal<MessageData[Kind]>()) {
           if (!this.validateData(message, data)) return;
-          const result = globalMiddleware(message)(data!, updateData, getPacket);
+          const result = globalMiddleware(message)(ctx);
           if (result === DropRequest) return;
         }
         for (const middleware of this.middleware.getServer(message)) {
           if (!this.validateData(message, data)) return;
-          const result = middleware(message)(data!, updateData, getPacket);
+          const result = middleware(message)(ctx);
           if (result === DropRequest) return;
         }
 
@@ -200,14 +201,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
       if (!this.validateData(message, data)) return;
       task.spawn(() => {
+        const ctx: MiddlewareContext<MessageData[Kind]> = { data: data!, updateData, getRawData: getPacket };
         for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>()) {
           if (!this.validateData(message, data)) return;
-          const result = globalMiddleware(message)(player, data!, updateData, getPacket);
+          const result = globalMiddleware(message)(player, ctx);
           if (result === DropRequest) return;
         }
         for (const middleware of this.middleware.getClient(message)) {
           if (!this.validateData(message, data)) return;
-          const result = middleware(message)(player, data!, updateData, getPacket);
+          const result = middleware(message)(player, ctx);
           if (result === DropRequest) return;
         }
 
@@ -232,16 +234,17 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
       if (!this.validateData(message, data)) return;
       task.spawn(() => {
+        const ctx: MiddlewareContext<MessageData[Kind]> = { data: data!, updateData, getRawData: getPacket };
         for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>())
           for (const player of Players.GetPlayers()) {
             if (!this.validateData(message, data)) return;
-            const result = globalMiddleware(message)(player, data!, updateData, getPacket);
+            const result = globalMiddleware(message)(player, ctx);
             if (result === DropRequest) return;
           }
         for (const middleware of this.middleware.getClient(message))
           for (const player of Players.GetPlayers()) {
             if (!this.validateData(message, data)) return;
-            const result = middleware(message)(player, data!, updateData, getPacket);
+            const result = middleware(message)(player, ctx);
             if (result === DropRequest) return;
           }
 

@@ -114,7 +114,7 @@ Drop, delay, or modify requests
 import type { ClientMiddleware } from "@rbxts/tether";
 
 export function logClient(): ClientMiddleware {
-  return message => (player, data) => print(`[LOG]: Sent message '${message}' to player ${player} with data:`, data);
+  return message => (player, ctx) => print(`[LOG]: Sent message '${message}' to player ${player} with data:`, ctx.data);
 }
 ```
 
@@ -123,7 +123,7 @@ export function logClient(): ClientMiddleware {
 import type { ServerMiddleware } from "@rbxts/tether";
 
 export function logServer(): ServerMiddleware {
-  return message => data => print(`[LOG]: Sent message '${message}' to server with data:`, data);
+  return message => ctx => print(`[LOG]: Sent message '${message}' to server with data:`, ctx.data);
 }
 ```
 
@@ -150,7 +150,7 @@ import type { ServerMiddleware } from "@rbxts/tether";
 
 export function incrementNumberData(): ServerMiddleware<number> {
   // sets the data to be used by the any subsequent middlewares as well as sent through the remote
-  return () => (data, updateData) => updateData(data + 1);
+  return () => ({ data, updateData }) => updateData(data + 1);
 }
 ```
 
@@ -165,7 +165,7 @@ messaging.middleware
   // drops any requests that occur within 5 seconds of each other
   .useServer(Message.Test, BuiltinMiddlewares.rateLimit(5)) 
   // will be just one byte!
-  .useShared(Message.Packed, () => (_, __, getRawData) => print("Packed object size:", buffer.len(getRawData())));
+  .useShared(Message.Packed, () => ctx => print("Packed object size:", buffer.len(ctx.getRawData().buffer)));
   // logs every message fired
   .useServerGlobal(logServer())
   .useClientGlobal(logClient())

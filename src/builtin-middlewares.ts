@@ -67,7 +67,7 @@ export namespace BuiltinMiddlewares {
    */
   export function debug<T>(schema?: Modding.Many<Any.Equals<T, unknown> extends 1 ? undefined : SerializerMetadata<TetherPacket<T>>>): SharedMiddleware<T> {
     return message =>
-      (data, _, getRawData) => {
+      ({ data, getRawData }) => {
         const rawData = getRawData();
         const bufferSize = buffer.len(rawData.buffer);
         const blobsSize = rawData.blobs.size() * BLOB_SIZE;
