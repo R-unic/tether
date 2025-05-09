@@ -34,7 +34,6 @@
     "@rbxts/types": "^1.0.835",
     "rbxts-transformer-flamework": "^1.2.4",
     "roblox-ts": "^3.0.0",
-    "ts-toolbelt": "^9.6.0",
     "typescript": "^5.5.3"
   },
   "dependencies": {
@@ -44,6 +43,7 @@
     "@rbxts/flamework-binary-serializer": "^0.6.0",
     "@rbxts/flamework-meta-utils": "^1.0.4",
     "@rbxts/repr": "^1.0.1",
-    "@rbxts/services": "^1.5.5"
+    "@rbxts/services": "^1.5.5",
+    "ts-toolbelt": "^9.6.0"
   }
 }
