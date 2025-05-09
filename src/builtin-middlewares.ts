@@ -2,11 +2,11 @@ import { Modding } from "@flamework/core";
 import { RunService } from "@rbxts/services";
 import { repeatString } from "@rbxts/flamework-meta-utils";
 import type { SerializerMetadata } from "@rbxts/flamework-binary-serializer";
+import type { Any } from "ts-toolbelt";
 import repr from "@rbxts/repr";
 
 import { DropRequest, type SharedMiddleware } from "./middleware";
 import type { TetherPacket } from "./structs";
-import { Any } from "ts-toolbelt";
 
 const BLOB_SIZE = 5; // bytes
 
