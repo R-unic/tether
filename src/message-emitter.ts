@@ -188,9 +188,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
       callback: ClientMessageCallback<MessageData[Kind]>
     ) => this.once(message, callback, this.clientCallbacks),
     /**
-     * Emits a message to a specific client
+     * Emits a message to a specific client or multiple clients
      *
-     * @param player The player to whom the message is sent
+     * @param player The player(s) to whom the message is sent
      * @param message The message kind to be sent
      * @param data The data associated with the message
      * @param unreliable Whether the message should be sent unreliably
@@ -220,6 +220,18 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
         send(player, getPacket());
       });
+    },
+    /**
+     * Emits a message to all clients except the specified client(s)
+     *
+     * @param player The player(s) to whom the message is not sent
+     * @param message The message kind to be sent
+     * @param data The data associated with the message
+     * @param unreliable Whether the message should be sent unreliably
+     */
+    emitExcept: <Kind extends keyof MessageData>(player: Player | Player[], message: Kind & BaseMessage, data?: MessageData[Kind], unreliable = false): void => {
+      const shouldSendTo = (p: Player) => typeIs(player, "Instance") ? p !== player : !player.includes(p);
+      this.client.emit(Players.GetPlayers().filter(shouldSendTo), message, data, unreliable);
     },
     /**
      * Emits a message to all connected clients
