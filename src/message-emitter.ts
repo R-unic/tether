@@ -321,20 +321,21 @@ export class MessageEmitter<MessageData> extends Destroyable {
   }
 
   private initialize(): this {
-    if (RunService.IsClient())
-      this.janitor.Add(this.clientEvents.sendClientMessage.connect(serializedPacket => {
-        const sentMessage = this.readMessageFromPacket(serializedPacket);
-        this.executeEventCallbacks(sentMessage, serializedPacket);
-        this.executeFunctions(sentMessage, serializedPacket);
-      }));
-    else
-      this.janitor.Add(this.serverEvents.sendServerMessage.connect((player, serializedPacket) => {
-        const sentMessage = this.readMessageFromPacket(serializedPacket);
-        this.executeEventCallbacks(sentMessage, serializedPacket, player);
-        this.executeFunctions(sentMessage, serializedPacket);
-      }));
+    if (RunService.IsClient()) {
+      this.janitor.Add(this.clientEvents.sendClientMessage.connect(serializedPacket => this.onRemoteFire(serializedPacket)));
+      this.janitor.Add(this.clientEvents.sendUnreliableClientMessage.connect(serializedPacket => this.onRemoteFire(serializedPacket)));
+    } else {
+      this.janitor.Add(this.serverEvents.sendServerMessage.connect((player, serializedPacket) => this.onRemoteFire(serializedPacket, player)));
+      this.janitor.Add(this.serverEvents.sendUnreliableServerMessage.connect((player, serializedPacket) => this.onRemoteFire(serializedPacket, player)));
+    }
 
     return this;
+  }
+
+  private onRemoteFire(serializedPacket: SerializedPacket, player?: Player): void {
+    const sentMessage = this.readMessageFromPacket(serializedPacket);
+    this.executeEventCallbacks(sentMessage, serializedPacket, player);
+    this.executeFunctions(sentMessage, serializedPacket);
   }
 
   private readMessageFromPacket(serializedPacket: SerializedPacket): keyof MessageData & BaseMessage {
