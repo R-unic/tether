@@ -7,6 +7,7 @@ import repr from "@rbxts/repr";
 
 import { DropRequest, type SharedMiddleware } from "./middleware";
 import type { TetherPacket } from "./structs";
+import { bufferToString } from "./utility";
 
 const BLOB_SIZE = 5; // bytes
 
@@ -56,18 +57,6 @@ export namespace BuiltinMiddlewares {
 
         lastRequest = os.clock();
       };
-  }
-
-  function bufferToString(buf: buffer): string {
-    const s: string[] = ["{ "];
-    for (let i = 0; i < buffer.len(buf); i++) {
-      const byte = buffer.readu8(buf, i);
-      s.push(tostring(byte));
-      if (i < buffer.len(buf) - 1)
-        s.push(", ");
-    }
-    s.push(" }");
-    return s.join("");
   }
 
   const horizontalLine = repeatString<"-", 36>();

@@ -1,10 +1,10 @@
-import { Flamework, Modding } from "@flamework/core";
+import { Modding } from "@flamework/core";
 import { Networking } from "@flamework/networking";
-import { createBinarySerializer, type Serializer, type SerializerMetadata } from "@rbxts/flamework-binary-serializer";
+import { createBinarySerializer, DataType, type Serializer, type SerializerMetadata } from "@rbxts/flamework-binary-serializer";
 import { Players, RunService } from "@rbxts/services";
 import Destroyable from "@rbxts/destroyable";
 
-import { DropRequest, MiddlewareContext, MiddlewareProvider } from "./middleware";
+import { DropRequest, MiddlewareProvider, type MiddlewareContext } from "./middleware";
 import type {
   TetherPacket,
   SerializedPacket,
@@ -23,9 +23,10 @@ import type {
 
 // TODO: error when trying to do something like server.emit() from the server
 
+const messageSerializer = createBinarySerializer<TetherPacket<undefined>>();
 const remotes = Networking.createEvent<ServerEvents, ClientEvents>();
 const metaGenerationFailed =
-  "[@rbxts/tether]: Failed to generate message metadata - make sure you are using Flamework macro-friendly types in your schemas";
+  "[@rbxts/tether]: Failed to generate message metadata - make sure you have the Flamework transformer and are using Flamework macro-friendly types in your schemas";
 const guardFailed = (message: BaseMessage) =>
   `[@rbxts/tether]: Type validation guard failed for message '${message}' - check your sent data`;
 
@@ -55,7 +56,12 @@ export class MessageEmitter<MessageData> extends Destroyable {
     for (const [kind, { guard, serializerMetadata }] of pairs(meta as SorryLittensy)) {
       const numberKind = tonumber(kind) as keyof MessageData & BaseMessage;
       emitter.guards.set(numberKind, guard);
-      if (serializerMetadata === undefined) continue;
+
+      if (serializerMetadata === undefined) { // this is true for undefined data!!
+        emitter.serializers[numberKind] = messageSerializer as never;
+        continue;
+      }
+
       emitter.addSerializer(numberKind, serializerMetadata as never);
     }
 
@@ -247,14 +253,16 @@ export class MessageEmitter<MessageData> extends Destroyable {
       if (!this.validateData(message, data)) return;
       task.spawn(() => {
         const ctx: MiddlewareContext<MessageData[Kind]> = { data: data!, updateData, getRawData: getPacket };
+        const players = Players.GetPlayers();
+
         for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>())
-          for (const player of Players.GetPlayers()) {
+          for (const player of players) {
             if (!this.validateData(message, data)) return;
             const result = globalMiddleware(message)(player, ctx);
             if (result === DropRequest) return;
           }
         for (const middleware of this.middleware.getClient(message))
-          for (const player of Players.GetPlayers()) {
+          for (const player of players) {
             if (!this.validateData(message, data)) return;
             const result = middleware(message)(player, ctx);
             if (result === DropRequest) return;
@@ -333,13 +341,10 @@ export class MessageEmitter<MessageData> extends Destroyable {
   }
 
   private onRemoteFire(serializedPacket: SerializedPacket, player?: Player): void {
-    const sentMessage = this.readMessageFromPacket(serializedPacket);
-    this.executeEventCallbacks(sentMessage, serializedPacket, player);
-    this.executeFunctions(sentMessage, serializedPacket);
-  }
+    const { message } = messageSerializer.deserialize(serializedPacket.buffer, serializedPacket.blobs);
 
-  private readMessageFromPacket(serializedPacket: SerializedPacket): keyof MessageData & BaseMessage {
-    return buffer.readu8(serializedPacket.buffer, 0) as never;
+    this.executeEventCallbacks(message as never, serializedPacket, player);
+    this.executeFunctions(message as never, serializedPacket);
   }
 
   private executeFunctions(message: keyof MessageData & BaseMessage, serializedPacket: SerializedPacket): void {
@@ -398,15 +403,12 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   private getPacket<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind]): SerializedPacket {
     const serializer = this.getSerializer(message);
-    if (serializer !== undefined && data !== undefined)
-      return serializer.serialize({ message, data });
+    if (serializer === undefined) {
+      warn(`[@rbxts/tether]: Failed to get packet for message '${message}', no serializer was found`);
+      return messageSerializer.serialize({ message, data: undefined });
+    }
 
-    const buf = buffer.create(1);
-    buffer.writeu8(buf, 0, message);
-    return {
-      buffer: buf,
-      blobs: []
-    };
+    return serializer.serialize({ message, data: data! });
   }
 
   /** @metadata macro */
