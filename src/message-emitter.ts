@@ -1,8 +1,9 @@
 import { Modding } from "@flamework/core";
 import { Networking } from "@flamework/networking";
-import { createBinarySerializer, DataType, type Serializer, type SerializerMetadata } from "@rbxts/flamework-binary-serializer";
+import { createBinarySerializer, type Serializer, type SerializerMetadata } from "@rbxts/flamework-binary-serializer";
 import { Players, RunService } from "@rbxts/services";
 import Destroyable from "@rbxts/destroyable";
+import repr from "@rbxts/repr";
 
 import { DropRequest, MiddlewareProvider, type MiddlewareContext } from "./middleware";
 import type {
@@ -27,8 +28,8 @@ const messageSerializer = createBinarySerializer<TetherPacket<undefined>>();
 const remotes = Networking.createEvent<ServerEvents, ClientEvents>();
 const metaGenerationFailed =
   "[@rbxts/tether]: Failed to generate message metadata - make sure you have the Flamework transformer and are using Flamework macro-friendly types in your schemas";
-const guardFailed = (message: BaseMessage) =>
-  `[@rbxts/tether]: Type validation guard failed for message '${message}' - check your sent data`;
+const guardFailed = (message: BaseMessage, data: unknown) =>
+  `[@rbxts/tether]: Type validation guard failed for message '${message}' - check your sent data\nSent data: ${repr(data)}`;
 
 export class MessageEmitter<MessageData> extends Destroyable {
   public readonly middleware = new MiddlewareProvider<MessageData>;
@@ -323,7 +324,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const guard = this.guards.get(message)!;
     const guardPassed = guard(data);
     if (!guardPassed)
-      warn(guardFailed(message));
+      warn(guardFailed(message, data));
 
     return guardPassed
   }
