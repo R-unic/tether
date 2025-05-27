@@ -7,7 +7,6 @@ import repr from "@rbxts/repr";
 
 import { DropRequest, MiddlewareProvider, type MiddlewareContext } from "./middleware";
 import type {
-  TetherPacket,
   SerializedPacket,
   ClientEvents,
   ClientMessageCallback,
@@ -24,7 +23,6 @@ import type {
 
 // TODO: error when trying to do something like server.emit() from the server
 
-const messageSerializer = createBinarySerializer<TetherPacket<undefined>>();
 const remotes = Networking.createEvent<ServerEvents, ClientEvents>();
 const metaGenerationFailed =
   "[@rbxts/tether]: Failed to generate message metadata - make sure you have the Flamework transformer and are using Flamework macro-friendly types in your schemas";
@@ -39,7 +37,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
   private readonly serverCallbacks = new Map<keyof MessageData, Set<ServerMessageCallback>>;
   private readonly serverFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
   private readonly guards = new Map<keyof MessageData, Guard>;
-  private readonly serializers: Partial<Record<keyof MessageData, Serializer<TetherPacket<MessageData[keyof MessageData]>>>> = {};
+  private readonly serializers: Partial<Record<keyof MessageData, Serializer<MessageData[keyof MessageData]>>> = {};
   private serverEvents!: ReturnType<typeof remotes.createServer>;
   private clientEvents!: ReturnType<typeof remotes.createClient>;
 
@@ -58,11 +56,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
       const numberKind = tonumber(kind) as keyof MessageData & BaseMessage;
       emitter.guards.set(numberKind, guard);
 
-      if (serializerMetadata === undefined) { // this is true for undefined data!!
-        emitter.serializers[numberKind] = messageSerializer as never;
-        continue;
-      }
-
+      if (serializerMetadata === undefined) continue;
       emitter.addSerializer(numberKind, serializerMetadata as never);
     }
 
@@ -343,7 +337,10 @@ export class MessageEmitter<MessageData> extends Destroyable {
   }
 
   private onRemoteFire(serializedPacket: SerializedPacket, player?: Player): void {
-    const message = buffer.readu8(serializedPacket.buffer, 0) as never;
+    if (buffer.len(serializedPacket.messageBuffer) > 1)
+      return warn("[@rbxts/tether]: Rejected message because message buffer was larger than one byte");
+
+    const message = buffer.readu8(serializedPacket.messageBuffer, 0) as never;
     this.executeEventCallbacks(message, serializedPacket, player);
     this.executeFunctions(message, serializedPacket);
   }
@@ -357,7 +354,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const serializer = this.getSerializer(message);
     const packet = serializer?.deserialize(serializedPacket.buffer, serializedPacket.blobs);
     for (const callback of functions)
-      callback(packet?.data);
+      callback(packet);
   }
 
   private executeEventCallbacks(message: keyof MessageData & BaseMessage, serializedPacket: SerializedPacket, player?: Player): void {
@@ -370,9 +367,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const packet = serializer?.deserialize(serializedPacket.buffer, serializedPacket.blobs);
     for (const callback of callbacks)
       if (isServer)
-        callback(player!, packet?.data);
+        callback(player!, packet);
       else
-        (callback as ClientMessageCallback)(packet?.data); // why doesn't it infer this?!?!?!
+        (callback as ClientMessageCallback)(packet); // why doesn't it infer this?!?!?!
   }
 
   private once<Kind extends keyof MessageData>(
@@ -404,25 +401,29 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   private getPacket<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind]): SerializedPacket {
     const serializer = this.getSerializer(message);
-    if (serializer === undefined) {
-      warn(`[@rbxts/tether]: Failed to get packet for message '${message}', no serializer was found`);
-      return messageSerializer.serialize({ message, data: undefined });
-    }
+    const messageBuffer = buffer.create(1);
+    buffer.writeu8(messageBuffer, 0, message);
+    if (serializer === undefined)
+      return {
+        messageBuffer,
+        buffer: buffer.create(0),
+        blobs: []
+      };
 
-    return serializer.serialize({ message, data: data! });
+    return { messageBuffer, ...serializer.serialize(data) };
   }
 
   /** @metadata macro */
-  private addSerializer<Kind extends keyof MessageData>(message: Kind & BaseMessage, meta?: Modding.Many<SerializerMetadata<TetherPacket<MessageData[Kind]>>>): void {
-    this.serializers[message] = this.createMessageSerializer(meta) as unknown as Serializer<TetherPacket<MessageData[keyof MessageData]>>;
+  private addSerializer<Kind extends keyof MessageData>(message: Kind & BaseMessage, meta?: Modding.Many<SerializerMetadata<MessageData[Kind]>>): void {
+    this.serializers[message] = this.createMessageSerializer(meta) as never;
   }
 
   /** @metadata macro */
-  private createMessageSerializer<Kind extends keyof MessageData>(meta?: Modding.Many<SerializerMetadata<TetherPacket<MessageData[Kind]>>>): Serializer<TetherPacket<MessageData[Kind]>> {
-    return createBinarySerializer<TetherPacket<MessageData[Kind]>>(meta);
+  private createMessageSerializer<Kind extends keyof MessageData>(meta?: Modding.Many<SerializerMetadata<MessageData[Kind]>>): Serializer<MessageData[Kind]> {
+    return createBinarySerializer<MessageData[Kind]>(meta);
   }
 
-  private getSerializer<Kind extends keyof MessageData>(message: Kind & BaseMessage): Serializer<TetherPacket<MessageData[Kind]>> | undefined {
+  private getSerializer<Kind extends keyof MessageData>(message: Kind & BaseMessage): Serializer<MessageData[Kind] | undefined> | undefined {
     return this.serializers[message] as never;
   }
 }

@@ -6,7 +6,6 @@ import type { Any } from "ts-toolbelt";
 import repr from "@rbxts/repr";
 
 import { DropRequest, type SharedMiddleware } from "./middleware";
-import type { TetherPacket } from "./structs";
 import { bufferToString } from "./utility";
 
 const BLOB_SIZE = 5; // bytes
@@ -73,14 +72,14 @@ export namespace BuiltinMiddlewares {
    * @returns A shared middleware that will log a message whenever a message is sent.
    * @metadata macro
    */
-  export function debug<T>(schema?: Modding.Many<Any.Equals<T, unknown> extends 1 ? undefined : SerializerMetadata<TetherPacket<T>>>): SharedMiddleware<T> {
+  export function debug<T>(schema?: Modding.Many<Any.Equals<T, unknown> extends 1 ? undefined : SerializerMetadata<T>>): SharedMiddleware<T> {
     return message =>
       ({ data, getRawData }) => {
         const rawData = getRawData();
         const bufferSize = buffer.len(rawData.buffer);
         const blobsSize = rawData.blobs.size() * BLOB_SIZE;
         const schemaString = schema !== undefined
-          ? " " + repr(schema[1], { pretty: true }).split("\n").join("\n ")
+          ? " " + repr((schema as unknown[])[0], { pretty: true }).split("\n").join("\n ")
           : "unknown";
 
         const text = [

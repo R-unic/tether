@@ -1,6 +1,6 @@
 import { Modding } from "@flamework/core";
 import type { Networking } from "@flamework/networking";
-import type { DataType, SerializerMetadata } from "@rbxts/flamework-binary-serializer";
+import type { SerializerMetadata } from "@rbxts/flamework-binary-serializer";
 
 export type MessageCallback<T = unknown> = ServerMessageCallback<T> | ClientMessageCallback<T>;
 export type ClientMessageCallback<T = unknown> = (data: T) => void;
@@ -10,13 +10,9 @@ export type ServerMessageFunctionCallback<T = unknown, R = unknown> = (player: P
 export type BaseMessage = number;
 
 export interface SerializedPacket {
+  readonly messageBuffer: buffer;
   readonly buffer: buffer;
   readonly blobs: defined[];
-}
-
-export interface TetherPacket<Data> {
-  readonly message: DataType.u8;
-  readonly data: Data;
 }
 
 export type MessageEvent = (packet: SerializedPacket) => void;
@@ -33,8 +29,9 @@ export interface ClientEvents {
 }
 export interface MessageMetadata<MessageData, Kind extends keyof MessageData> {
   readonly guard: Modding.Generic<MessageData[Kind], "guard">;
-  readonly serializerMetadata: MessageData[Kind] extends undefined ? undefined : Modding.Many<SerializerMetadata<TetherPacket<MessageData[Kind]>>>;
+  readonly serializerMetadata: MessageData[Kind] extends undefined ? undefined : Modding.Many<SerializerMetadata<MessageData[Kind]>>;
 }
+
 export type Guard<T = unknown> = (value: unknown) => value is T;
 export type MessageEmitterMetadata<MessageData> = {
   [Kind in keyof MessageData]: MessageMetadata<MessageData, Kind>;
