@@ -216,6 +216,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
         }
         for (const middleware of this.middleware.getClient(message)) {
           if (!this.validateData(message, data)) return;
+
           const result = middleware(message)(player, ctx);
           if (result === DropRequest) return;
         }
@@ -342,10 +343,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
   }
 
   private onRemoteFire(serializedPacket: SerializedPacket, player?: Player): void {
-    const { message } = messageSerializer.deserialize(serializedPacket.buffer, serializedPacket.blobs);
-
-    this.executeEventCallbacks(message as never, serializedPacket, player);
-    this.executeFunctions(message as never, serializedPacket);
+    const message = buffer.readu8(serializedPacket.buffer, 0) as never;
+    this.executeEventCallbacks(message, serializedPacket, player);
+    this.executeFunctions(message, serializedPacket);
   }
 
   private executeFunctions(message: keyof MessageData & BaseMessage, serializedPacket: SerializedPacket): void {

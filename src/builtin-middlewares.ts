@@ -88,7 +88,7 @@ export namespace BuiltinMiddlewares {
           horizontalLine, "\n",
           "Packet sent to ", (RunService.IsServer() ? "client" : "server"), "!\n",
           " - Message: ", message, "\n",
-          " - Data: ", data === undefined ? "undefined" : data, "\n",
+          " - Data: ", repr(data, { pretty: true }), "\n",
           " - Raw data:\n",
           "   - Buffer: ", bufferToString(rawData.buffer), "\n",
           "   - Blobs: ", repr(rawData.blobs, { pretty: false, robloxClassName: true }), "\n",
