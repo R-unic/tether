@@ -117,29 +117,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
       if (RunService.IsServer())
         error("[@rbxts/tether]: Cannot emit message to server from server");
 
-      const updateData = (newData?: MessageData[Kind]) => void (data = newData);
-      const getPacket = () => this.getPacket(message, data);
-
-      if (!this.validateData(message, data)) return;
       task.spawn(() => {
-        const ctx: MiddlewareContext<MessageData[Kind]> = { data: data!, updateData, getRawData: getPacket };
-        for (const globalMiddleware of this.middleware.getServerGlobal<MessageData[Kind]>()) {
-          if (!this.validateData(message, data)) return;
-          const result = globalMiddleware(message)(ctx);
-          if (result === DropRequest) return;
-        }
-        for (const middleware of this.middleware.getServer(message)) {
-          if (!this.validateData(message, data)) return;
-          const result = middleware(message)(ctx);
-          if (result === DropRequest) return;
-        }
+        const [dropRequest, newData] = this.runServerMiddlewares(message, data);
+        if (dropRequest) return;
 
-        if (!this.validateData(message, data)) return;
         const send = unreliable
           ? this.clientEvents.sendUnreliableServerMessage
           : this.clientEvents.sendServerMessage;
 
-        send(getPacket());
+        send(this.getPacket(message, newData));
       });
     },
 
@@ -231,30 +217,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
       if (RunService.IsClient())
         error("[@rbxts/tether]: Cannot emit message to client from client");
 
-      const updateData = (newData?: MessageData[Kind]) => void (data = newData);
-      const getPacket = () => this.getPacket(message, data);
-
-      if (!this.validateData(message, data)) return;
       task.spawn(() => {
-        const ctx: MiddlewareContext<MessageData[Kind]> = { data: data!, updateData, getRawData: getPacket };
-        for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>()) {
-          if (!this.validateData(message, data)) return;
-          const result = globalMiddleware(message)(player, ctx);
-          if (result === DropRequest) return;
-        }
-        for (const middleware of this.middleware.getClient(message)) {
-          if (!this.validateData(message, data)) return;
+        const [dropRequest, newData] = this.runClientMiddlewares(message, data);
+        if (dropRequest) return;
 
-          const result = middleware(message)(player, ctx);
-          if (result === DropRequest) return;
-        }
-
-        if (!this.validateData(message, data)) return;
         const send = unreliable
           ? this.serverEvents.sendUnreliableClientMessage
           : this.serverEvents.sendClientMessage;
 
-        send(player, getPacket());
+        send(player, this.getPacket(message, newData));
       });
     },
     /**
@@ -280,33 +251,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
       if (RunService.IsClient())
         error("[@rbxts/tether]: Cannot emit message to all clients from client");
 
-      const updateData = (newData?: MessageData[Kind]) => void (data = newData);
-      const getPacket = () => this.getPacket(message, data);
-
-      if (!this.validateData(message, data)) return;
       task.spawn(() => {
-        const ctx: MiddlewareContext<MessageData[Kind]> = { data: data!, updateData, getRawData: getPacket };
-        const players = Players.GetPlayers();
+        const [dropRequest, newData] = this.runClientMiddlewares(message, data);
+        if (dropRequest) return;
 
-        for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>())
-          for (const player of players) {
-            if (!this.validateData(message, data)) return;
-            const result = globalMiddleware(message)(player, ctx);
-            if (result === DropRequest) return;
-          }
-        for (const middleware of this.middleware.getClient(message))
-          for (const player of players) {
-            if (!this.validateData(message, data)) return;
-            const result = middleware(message)(player, ctx);
-            if (result === DropRequest) return;
-          }
-
-        if (!this.validateData(message, data)) return;
         const send = unreliable
           ? this.serverEvents.sendUnreliableClientMessage
           : this.serverEvents.sendClientMessage;
 
-        send.broadcast(getPacket());
+        send.broadcast(this.getPacket(message, newData));
       });
     },
 
@@ -360,15 +313,6 @@ export class MessageEmitter<MessageData> extends Destroyable {
     },
   };
 
-  private validateData(message: keyof MessageData & BaseMessage, data: unknown): boolean {
-    const guard = this.guards.get(message)!;
-    const guardPassed = guard(data);
-    if (!guardPassed)
-      warn(guardFailed(message, data));
-
-    return guardPassed
-  }
-
   private initialize(): this {
     if (RunService.IsClient()) {
       this.janitor.Add(this.clientEvents.sendClientMessage.connect(serializedPacket => this.onRemoteFire(serializedPacket)));
@@ -379,6 +323,103 @@ export class MessageEmitter<MessageData> extends Destroyable {
     }
 
     return this;
+  }
+
+  private runClientMiddlewares<Kind extends keyof MessageData>(
+    message: Kind & BaseMessage,
+    data?: MessageData[Kind],
+    player?: Player | Player[]
+  ): [boolean, MessageData[Kind]] {
+    if (!this.validateData(message, data))
+      return [true, data!];
+
+    const players = player ?? Players.GetPlayers();
+    const ctx: MiddlewareContext<MessageData[Kind], Kind & BaseMessage> = {
+      message,
+      data: data!,
+      updateData: (newData?: MessageData[Kind]) => void (data = newData),
+      getRawData: () => this.getPacket(message, data)
+    };
+
+    for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>()) {
+      const result = globalMiddleware(players, ctx);
+      if (!this.validateData(message, data, "Invalid data after global client middleware"))
+        return [false, data!];
+
+      if (result === DropRequest) {
+        this.middleware.notifyRequestDropped(message, "Global client middleware");
+        return [true, data!];
+      }
+    }
+
+    for (const middleware of this.middleware.getClient(message)) {
+      const result = middleware(players, ctx);
+      if (!this.validateData(message, data, "Invalid data after client middleware"))
+        return [false, data!];
+
+      if (result === DropRequest) {
+        this.middleware.notifyRequestDropped(message, "Client middleware");
+        return [true, data!];
+      }
+    }
+
+    if (!this.validateData(message, data))
+      return [true, data!];
+
+    return [false, data!];
+  }
+
+  private runServerMiddlewares<Kind extends keyof MessageData>(
+    message: Kind & BaseMessage,
+    data?: MessageData[Kind]
+  ): [boolean, MessageData[Kind]] {
+    if (!this.validateData(message, data))
+      return [true, data!];
+
+    const ctx: MiddlewareContext<MessageData[Kind], Kind & BaseMessage> = {
+      message,
+      data: data!,
+      updateData: (newData?: MessageData[Kind]) => void (data = newData),
+      getRawData: () => this.getPacket(message, data)
+    };
+
+    for (const globalMiddleware of this.middleware.getServerGlobal<MessageData[Kind]>()) {
+      if (!this.validateData(message, data, "Invalid data after global server middleware"))
+        return [false, data!];
+
+      const result = globalMiddleware(ctx);
+      if (result === DropRequest) {
+        this.middleware.notifyRequestDropped(message, "Global server middleware");
+        return [true, data!];
+      }
+    }
+
+    for (const middleware of this.middleware.getServer(message)) {
+      if (!this.validateData(message, data, "Invalid data after server middleware"))
+        return [false, data!];
+
+      const result = middleware(ctx);
+      if (result === DropRequest) {
+        this.middleware.notifyRequestDropped(message, "Server middleware");
+        return [true, data!];
+      }
+    }
+
+    if (!this.validateData(message, data))
+      return [true, data!];
+
+    return [false, data!];
+  }
+
+  private validateData(message: keyof MessageData & BaseMessage, data: unknown, requestDropReason = "Invalid data"): boolean {
+    const guard = this.guards.get(message)!;
+    const guardPassed = guard(data);
+    if (!guardPassed) {
+      warn(guardFailed(message, data));
+      this.middleware.notifyRequestDropped(message, requestDropReason);
+    }
+
+    return guardPassed
   }
 
   private onRemoteFire(serializedPacket: SerializedPacket, player?: Player): void {

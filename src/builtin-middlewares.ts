@@ -18,7 +18,7 @@ export namespace BuiltinMiddlewares {
    * @returns A shared middleware that will simulate a ping
    */
   export function simulatePing(pingInMs: number): SharedMiddleware {
-    return () => () => void task.wait(pingInMs / 1000);
+    return () => void task.wait(pingInMs / 1000);
   }
 
   /**
@@ -29,15 +29,14 @@ export namespace BuiltinMiddlewares {
    * @returns A shared middleware that will check if a message packet exceeds the given maximum size
    */
   export function maxPacketSize(maxBytes: number, throwError = true): SharedMiddleware {
-    return message =>
-      ctx => {
-        const rawData = ctx.getRawData();
-        const totalSize = buffer.len(rawData.buffer) + rawData.blobs.size() * BLOB_SIZE;
-        if (totalSize > maxBytes)
-          return throwError
-            ? error(`[@rbxts/tether]: Message '${message}' exceeded maximum packet size of ${maxBytes} bytes`)
-            : DropRequest;
-      };
+    return ctx => {
+      const rawData = ctx.getRawData();
+      const totalSize = buffer.len(rawData.buffer) + rawData.blobs.size() * BLOB_SIZE;
+      if (totalSize > maxBytes)
+        return throwError
+          ? error(`[@rbxts/tether]: Message '${ctx.message}' exceeded maximum packet size of ${maxBytes} bytes`)
+          : DropRequest;
+    };
   }
 
   /**
@@ -49,13 +48,12 @@ export namespace BuiltinMiddlewares {
   export function rateLimit(interval: number): SharedMiddleware {
     let lastRequest = 0;
 
-    return () =>
-      () => {
-        if (os.clock() - lastRequest < interval)
-          return DropRequest;
+    return () => {
+      if (os.clock() - lastRequest < interval)
+        return DropRequest;
 
-        lastRequest = os.clock();
-      };
+      lastRequest = os.clock();
+    };
   }
 
   const horizontalLine = repeatString<"-", 36>();
@@ -73,33 +71,32 @@ export namespace BuiltinMiddlewares {
    * @metadata macro
    */
   export function debug<T>(schema?: Modding.Many<Any.Equals<T, unknown> extends 1 ? undefined : SerializerMetadata<T>>): SharedMiddleware<T> {
-    return message =>
-      ({ data, getRawData }) => {
-        const rawData = getRawData();
-        const bufferSize = buffer.len(rawData.buffer);
-        const blobsSize = rawData.blobs.size() * BLOB_SIZE;
-        const schemaString = schema !== undefined
-          ? " " + repr((schema as unknown[])[0], { pretty: true }).split("\n").join("\n ")
-          : "unknown";
+    return ({ message, data, getRawData }) => {
+      const rawData = getRawData();
+      const bufferSize = buffer.len(rawData.buffer);
+      const blobsSize = rawData.blobs.size() * BLOB_SIZE;
+      const schemaString = schema !== undefined
+        ? " " + repr((schema as unknown[])[0], { pretty: true }).split("\n").join("\n ")
+        : "unknown";
 
-        const text = [
-          "\n",
-          horizontalLine, "\n",
-          "Packet sent to ", (RunService.IsServer() ? "client" : "server"), "!\n",
-          " - Message: ", message, "\n",
-          " - Data: ", repr(data, { pretty: true }), "\n",
-          " - Raw data:\n",
-          "   - Buffer: ", bufferToString(rawData.buffer), "\n",
-          "   - Blobs: ", repr(rawData.blobs, { pretty: false, robloxClassName: true }), "\n",
-          " - Packet size: ", bufferSize + blobsSize, " bytes\n",
-          "   - Buffer: ", bufferSize, " bytes\n",
-          "   - Blobs: ", blobsSize, " bytes\n",
-          " - Schema: ", schemaString, "\n",
-          horizontalLine,
-          "\n"
-        ];
+      const text = [
+        "\n",
+        horizontalLine, "\n",
+        "Packet sent to ", (RunService.IsServer() ? "client" : "server"), "!\n",
+        " - Message: ", message, "\n",
+        " - Data: ", repr(data, { pretty: true }), "\n",
+        " - Raw data:\n",
+        "   - Buffer: ", bufferToString(rawData.buffer), "\n",
+        "   - Blobs: ", repr(rawData.blobs, { pretty: false, robloxClassName: true }), "\n",
+        " - Packet size: ", bufferSize + blobsSize, " bytes\n",
+        "   - Buffer: ", bufferSize, " bytes\n",
+        "   - Blobs: ", blobsSize, " bytes\n",
+        " - Schema: ", schemaString, "\n",
+        horizontalLine,
+        "\n"
+      ];
 
-        print(text.join(""));
-      };
+      print(text.join(""));
+    };
   }
 }

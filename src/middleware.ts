@@ -6,27 +6,39 @@ type DropRequestSymbol = symbol & { _drop_req?: undefined };
 export const DropRequest = newproxy<DropRequestSymbol>();
 
 export type ClientMiddleware<Data = unknown> = { _client?: void }
-  & ((message: BaseMessage) =>
-    (player: Player | Player[], ctx: MiddlewareContext<Data>) => DropRequestSymbol | void);
+  & ((player: Player | Player[], ctx: MiddlewareContext<Data>) => DropRequestSymbol | void);
 
 export type ServerMiddleware<Data = unknown> = { _server?: void } & SharedMiddleware<Data>;
 
-export type SharedMiddleware<Data = unknown> =
-  (message: BaseMessage) =>
-    (ctx: MiddlewareContext<Data>) => DropRequestSymbol | void;
+export type SharedMiddleware<Data = unknown> = (ctx: MiddlewareContext<Data>) => DropRequestSymbol | void;
 
 export type Middleware<Data = unknown> = ServerMiddleware<Data> & ClientMiddleware<Data> & SharedMiddleware<Data>;
-export interface MiddlewareContext<Data = unknown> {
+export interface MiddlewareContext<Data = unknown, Message extends BaseMessage = BaseMessage> {
+  readonly message: Message;
   readonly data: Readonly<Data>;
   updateData: (newData: Data) => void;
   getRawData: () => SerializedPacket;
 }
+
+type RequestDropCallback = (message: BaseMessage, reason?: string) => void;
 
 export class MiddlewareProvider<MessageData> {
   private readonly clientGlobalMiddlewares: Middleware[] = [];
   private readonly serverGlobalMiddlewares: Middleware[] = [];
   private readonly clientMiddlewares: Record<BaseMessage, Middleware[]> = {};
   private readonly serverMiddlewares: Record<BaseMessage, Middleware[]> = {};
+  private readonly requestDroppedCallbacks = new Set<RequestDropCallback>;
+
+  public onRequestDropped(callback: RequestDropCallback): () => void {
+    this.requestDroppedCallbacks.add(callback);
+    return () => this.requestDroppedCallbacks.delete(callback);
+  }
+
+  /** @hidden */
+  public notifyRequestDropped(message: BaseMessage, reason?: string): void {
+    for (const callback of this.requestDroppedCallbacks)
+      callback(message, reason);
+  }
 
   /** @hidden */
   public getClient<Kind extends keyof MessageData>(message: Kind & BaseMessage): ClientMiddleware<MessageData[Kind]>[] {
@@ -91,14 +103,10 @@ export class MiddlewareProvider<MessageData> {
   ): this {
     const server = middlewares as ServerMiddleware<MessageData[Kind]> | ServerMiddleware<MessageData[Kind]>[];
     const client = (typeIs(middlewares, "function") ? [middlewares] : middlewares)
-      .map<ClientMiddleware<MessageData[Kind]>>(middleware =>
-        message =>
-          (_, ctx) => middleware(message)(ctx as never)
-      );
+      .map<ClientMiddleware<MessageData[Kind]>>(middleware => (_, ctx) => middleware(ctx as never));
 
     this.useServer(message, server, order);
-    this.useClient(message, client, order);
-    return this;
+    return this.useClient(message, client, order);
   }
 
   public useClientGlobal(
@@ -134,12 +142,9 @@ export class MiddlewareProvider<MessageData> {
     order?: number
   ): this {
     const client = (typeIs(middlewares, "function") ? [middlewares] : middlewares)
-      .map<ClientMiddleware>(middleware =>
-        message =>
-          (_, ctx) => middleware(message)(ctx));
+      .map<ClientMiddleware>(middleware => (_, ctx) => middleware(ctx));
 
     this.useClientGlobal(client, order);
-    this.useServerGlobal(middlewares, order);
-    return this;
+    return this.useServerGlobal(middlewares, order);
   }
 }
