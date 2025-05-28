@@ -351,8 +351,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const functions = functionsMap.get(message);
     if (functions === undefined) return;
 
-    const serializer = this.getSerializer(message);
-    const packet = serializer?.deserialize(serializedPacket.buffer, serializedPacket.blobs);
+    const packet = this.deserializeAndValidate(message, serializedPacket);
     for (const callback of functions)
       callback(packet);
   }
@@ -363,13 +362,19 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const callbacks: Set<MessageCallback> | undefined = callbacksMap.get(message);
     if (callbacks === undefined) return;
 
-    const serializer = this.getSerializer(message);
-    const packet = serializer?.deserialize(serializedPacket.buffer, serializedPacket.blobs);
+    const packet = this.deserializeAndValidate(message, serializedPacket);
     for (const callback of callbacks)
       if (isServer)
         callback(player!, packet);
       else
         (callback as ClientMessageCallback)(packet); // why doesn't it infer this?!?!?!
+  }
+
+  private deserializeAndValidate(message: keyof MessageData & number, serializedPacket: SerializedPacket) {
+    const serializer = this.getSerializer(message);
+    const packet = serializer?.deserialize(serializedPacket.buffer, serializedPacket.blobs);
+    this.validateData(message, packet);
+    return packet;
   }
 
   private once<Kind extends keyof MessageData>(
