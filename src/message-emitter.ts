@@ -21,9 +21,9 @@ import type {
   ServerMessageFunctionCallback
 } from "./structs";
 
-// TODO: error when trying to do something like server.emit() from the server
-
 const remotes = Networking.createEvent<ServerEvents, ClientEvents>();
+const noServerListen = "[@rbxts/tether]: Cannot listen to server message from client";
+const noClientListen = "[@rbxts/tether]: Cannot listen to client message from server";
 const metaGenerationFailed =
   "[@rbxts/tether]: Failed to generate message metadata - make sure you have the Flamework transformer and are using Flamework macro-friendly types in your schemas";
 const guardFailed = (message: BaseMessage, data: unknown) =>
@@ -86,7 +86,12 @@ export class MessageEmitter<MessageData> extends Destroyable {
     on: <Kind extends keyof MessageData>(
       message: Kind & BaseMessage,
       callback: ServerMessageCallback<MessageData[Kind]>
-    ) => this.on(message, callback, this.serverCallbacks),
+    ) => {
+      if (RunService.IsClient())
+        error(noServerListen);
+
+      return this.on(message, callback, this.serverCallbacks);
+    },
     /**
      * Disconnects the callback as soon as it is called for the first time
      *
@@ -95,7 +100,12 @@ export class MessageEmitter<MessageData> extends Destroyable {
     once: <Kind extends keyof MessageData>(
       message: Kind & BaseMessage,
       callback: ServerMessageCallback<MessageData[Kind]>
-    ) => this.once(message, callback, this.serverCallbacks),
+    ) => {
+      if (RunService.IsClient())
+        error(noServerListen);
+
+      return this.once(message, callback, this.serverCallbacks);
+    },
     /**
      * Emits a message to the server
      *
@@ -104,6 +114,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
      * @param unreliable Whether the message should be sent unreliably
      */
     emit: <Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind], unreliable = false): void => {
+      if (RunService.IsServer())
+        error("[@rbxts/tether]: Cannot emit message to server from server");
+
       const updateData = (newData?: MessageData[Kind]) => void (data = newData);
       const getPacket = () => this.getPacket(message, data);
 
@@ -143,6 +156,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
       data?: MessageData[Kind],
       unreliable = false
     ): Promise<MessageData[ReturnKind]> => {
+      if (RunService.IsServer())
+        error("[@rbxts/tether]: Cannot invoke server function from server");
+
       if (!this.clientFunctions.has(returnMessage))
         this.clientFunctions.set(returnMessage, new Set);
 
@@ -165,10 +181,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
       message: Kind & BaseMessage,
       returnMessage: ReturnKind & BaseMessage,
       callback: ServerMessageFunctionCallback<MessageData[Kind], MessageData[ReturnKind]>
-    ) => this.server.on(message, (player, data) => {
-      const returnValue = callback(player, data);
-      this.client.emit(player, returnMessage, returnValue);
-    })
+    ) => {
+      if (RunService.IsClient())
+        error(noServerListen);
+
+      return this.server.on(message, (player, data) => {
+        const returnValue = callback(player, data);
+        this.client.emit(player, returnMessage, returnValue);
+      });
+    }
   };
 
   public readonly client = {
@@ -178,7 +199,12 @@ export class MessageEmitter<MessageData> extends Destroyable {
     on: <Kind extends keyof MessageData>(
       message: Kind & BaseMessage,
       callback: ClientMessageCallback<MessageData[Kind]>
-    ) => this.on(message, callback, this.clientCallbacks),
+    ) => {
+      if (RunService.IsServer())
+        error(noClientListen);
+
+      return this.on(message, callback, this.clientCallbacks);
+    },
     /**
      * Disconnects the callback as soon as it is called for the first time
      *
@@ -187,7 +213,12 @@ export class MessageEmitter<MessageData> extends Destroyable {
     once: <Kind extends keyof MessageData>(
       message: Kind & BaseMessage,
       callback: ClientMessageCallback<MessageData[Kind]>
-    ) => this.once(message, callback, this.clientCallbacks),
+    ) => {
+      if (RunService.IsServer())
+        error(noClientListen);
+
+      return this.once(message, callback, this.clientCallbacks);
+    },
     /**
      * Emits a message to a specific client or multiple clients
      *
@@ -197,6 +228,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
      * @param unreliable Whether the message should be sent unreliably
      */
     emit: <Kind extends keyof MessageData>(player: Player | Player[], message: Kind & BaseMessage, data?: MessageData[Kind], unreliable = false): void => {
+      if (RunService.IsClient())
+        error("[@rbxts/tether]: Cannot emit message to client from client");
+
       const updateData = (newData?: MessageData[Kind]) => void (data = newData);
       const getPacket = () => this.getPacket(message, data);
 
@@ -243,6 +277,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
      * @param unreliable Whether the message should be sent unreliably
      */
     emitAll: <Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind], unreliable = false): void => {
+      if (RunService.IsClient())
+        error("[@rbxts/tether]: Cannot emit message to all clients from client");
+
       const updateData = (newData?: MessageData[Kind]) => void (data = newData);
       const getPacket = () => this.getPacket(message, data);
 
@@ -287,6 +324,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
       data?: MessageData[Kind],
       unreliable = false
     ): Promise<MessageData[ReturnKind]> => {
+      if (RunService.IsClient())
+        error("[@rbxts/tether]: Cannot invoke client function from client");
+
       if (!this.serverFunctions.has(returnMessage))
         this.serverFunctions.set(returnMessage, new Set);
 
@@ -309,10 +349,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
       message: Kind & BaseMessage,
       returnMessage: ReturnKind & BaseMessage,
       callback: ClientMessageFunctionCallback<MessageData[Kind], MessageData[ReturnKind]>
-    ) => this.client.on(message, data => {
-      const returnValue = callback(data);
-      this.server.emit(returnMessage, returnValue);
-    }),
+    ) => {
+      if (RunService.IsServer())
+        error(noClientListen);
+
+      return this.client.on(message, data => {
+        const returnValue = callback(data);
+        this.server.emit(returnMessage, returnValue);
+      });
+    },
   };
 
   private validateData(message: keyof MessageData & BaseMessage, data: unknown): boolean {
