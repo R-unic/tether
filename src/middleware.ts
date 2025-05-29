@@ -22,6 +22,7 @@ export interface MiddlewareContext<Data = unknown, Message extends BaseMessage =
 
 type RequestDropCallback = (message: BaseMessage, reason?: string) => void;
 
+// TODO: middlewares upon received message
 export class MiddlewareProvider<MessageData> {
   private readonly clientGlobalMiddlewares: Middleware[] = [];
   private readonly serverGlobalMiddlewares: Middleware[] = [];

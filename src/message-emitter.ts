@@ -20,6 +20,7 @@ import type {
   ClientMessageFunctionCallback,
   ServerMessageFunctionCallback
 } from "./structs";
+import Object from "@rbxts/object-utils";
 
 const remotes = Networking.createEvent<ServerEvents, ClientEvents>();
 const noServerListen = "[@rbxts/tether]: Cannot listen to server message from client";
@@ -29,6 +30,15 @@ const metaGenerationFailed =
 const guardFailed = (message: BaseMessage, data: unknown) =>
   `[@rbxts/tether]: Type validation guard failed for message '${message}' - check your sent data\nSent data: ${repr(data)}`;
 
+const defaultMesssageEmitterOptions: MessageEmitterOptions = {
+  batchRemotes: true,
+  batchRate: 1 / 24
+}
+interface MessageEmitterOptions {
+  readonly batchRemotes: boolean;
+  readonly batchRate: number;
+}
+
 export class MessageEmitter<MessageData> extends Destroyable {
   public readonly middleware = new MiddlewareProvider<MessageData>;
 
@@ -36,6 +46,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
   private readonly clientFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
   private readonly serverCallbacks = new Map<keyof MessageData, Set<ServerMessageCallback>>;
   private readonly serverFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
+  private readonly clientQueue: [Player | Player[], keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
+  private readonly clientBroadcastQueue: [keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
+  private readonly serverQueue: [keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
   private readonly guards = new Map<keyof MessageData, Guard>;
   private readonly serializers: Partial<Record<keyof MessageData, Serializer<MessageData[keyof MessageData]>>> = {};
   private serverEvents!: ReturnType<typeof remotes.createServer>;
@@ -43,9 +56,10 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   /** @metadata macro */
   public static create<MessageData>(
+    options?: Partial<MessageEmitterOptions>,
     meta?: Modding.Many<MessageEmitterMetadata<MessageData>>
   ): MessageEmitter<MessageData> {
-    const emitter = new MessageEmitter<MessageData>;
+    const emitter = new MessageEmitter<MessageData>(Object.assign({}, options, defaultMesssageEmitterOptions));
     if (meta === undefined) {
       warn(metaGenerationFailed);
       return emitter.initialize();
@@ -63,7 +77,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
     return emitter.initialize();
   }
 
-  private constructor() {
+  private constructor(
+    private readonly options = defaultMesssageEmitterOptions
+  ) {
     super();
     this.janitor.Add(() => {
       this.clientCallbacks.clear();
@@ -121,11 +137,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
         const [dropRequest, newData] = this.runServerMiddlewares(message, data);
         if (dropRequest) return;
 
-        const send = unreliable
-          ? this.clientEvents.sendUnreliableServerMessage
-          : this.clientEvents.sendServerMessage;
-
-        send(this.getPacket(message, newData));
+        this.serverQueue.push([message, newData, unreliable]);
       });
     },
 
@@ -221,11 +233,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
         const [dropRequest, newData] = this.runClientMiddlewares(message, data);
         if (dropRequest) return;
 
-        const send = unreliable
-          ? this.serverEvents.sendUnreliableClientMessage
-          : this.serverEvents.sendClientMessage;
-
-        send(player, this.getPacket(message, newData));
+        this.clientQueue.push([player, message, newData, unreliable]);
       });
     },
     /**
@@ -255,11 +263,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
         const [dropRequest, newData] = this.runClientMiddlewares(message, data);
         if (dropRequest) return;
 
-        const send = unreliable
-          ? this.serverEvents.sendUnreliableClientMessage
-          : this.serverEvents.sendClientMessage;
-
-        send.broadcast(this.getPacket(message, newData));
+        this.clientBroadcastQueue.push([message, newData, unreliable]);
       });
     },
 
@@ -322,7 +326,46 @@ export class MessageEmitter<MessageData> extends Destroyable {
       this.janitor.Add(this.serverEvents.sendUnreliableServerMessage.connect((player, serializedPacket) => this.onRemoteFire(serializedPacket, player)));
     }
 
+    let elapsed = 0;
+    RunService.Heartbeat.Connect(dt => {
+      elapsed += dt;
+      if (elapsed >= this.options.batchRate) {
+        elapsed -= this.options.batchRate;
+        this.update();
+      }
+    });
+
     return this;
+  }
+
+  private update(): void {
+    for (const [player, message, data, unreliable] of this.clientQueue) {
+      const remote = unreliable
+        ? this.serverEvents.sendUnreliableClientMessage
+        : this.serverEvents.sendClientMessage;
+
+      remote(player, this.getPacket(message, data));
+    }
+
+    this.clientQueue.clear();
+    for (const [message, data, unreliable] of this.clientBroadcastQueue) {
+      const remote = unreliable
+        ? this.serverEvents.sendUnreliableClientMessage
+        : this.serverEvents.sendClientMessage;
+
+      remote.broadcast(this.getPacket(message, data));
+    }
+
+    this.clientBroadcastQueue.clear();
+    for (const [message, data, unreliable] of this.serverQueue) {
+      const remote = unreliable
+        ? this.clientEvents.sendUnreliableServerMessage
+        : this.clientEvents.sendServerMessage;
+
+      remote(this.getPacket(message, data));
+    }
+
+    this.serverQueue.clear();
   }
 
   private runClientMiddlewares<Kind extends keyof MessageData>(
