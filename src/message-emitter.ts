@@ -46,11 +46,11 @@ export class MessageEmitter<MessageData> extends Destroyable {
   private readonly clientFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
   private readonly serverCallbacks = new Map<keyof MessageData, Set<ServerMessageCallback>>;
   private readonly serverFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
-  private readonly clientQueue: [Player | Player[], keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
-  private readonly clientBroadcastQueue: [keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
-  private readonly serverQueue: [keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
   private readonly guards = new Map<keyof MessageData, Guard>;
   private readonly serializers: Partial<Record<keyof MessageData, Serializer<MessageData[keyof MessageData]>>> = {};
+  private serverQueue: [keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
+  private clientBroadcastQueue: [keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
+  private clientQueue: [Player | Player[], keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
   private serverEvents!: ReturnType<typeof remotes.createServer>;
   private clientEvents!: ReturnType<typeof remotes.createClient>;
 
@@ -59,7 +59,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     options?: Partial<MessageEmitterOptions>,
     meta?: Modding.Many<MessageEmitterMetadata<MessageData>>
   ): MessageEmitter<MessageData> {
-    const emitter = new MessageEmitter<MessageData>(Object.assign({}, options, defaultMesssageEmitterOptions));
+    const emitter = new MessageEmitter<MessageData>(Object.assign({}, defaultMesssageEmitterOptions, options));
     if (meta === undefined) {
       warn(metaGenerationFailed);
       return emitter.initialize();
@@ -138,6 +138,8 @@ export class MessageEmitter<MessageData> extends Destroyable {
         if (dropRequest) return;
 
         this.serverQueue.push([message, newData, unreliable]);
+        if (!this.options.batchRemotes)
+          this.update();
       });
     },
 
@@ -234,6 +236,8 @@ export class MessageEmitter<MessageData> extends Destroyable {
         if (dropRequest) return;
 
         this.clientQueue.push([player, message, newData, unreliable]);
+        if (!this.options.batchRemotes)
+          this.update();
       });
     },
     /**
@@ -264,6 +268,8 @@ export class MessageEmitter<MessageData> extends Destroyable {
         if (dropRequest) return;
 
         this.clientBroadcastQueue.push([message, newData, unreliable]);
+        if (!this.options.batchRemotes)
+          this.update();
       });
     },
 
@@ -327,13 +333,17 @@ export class MessageEmitter<MessageData> extends Destroyable {
     }
 
     let elapsed = 0;
-    RunService.Heartbeat.Connect(dt => {
+    const { batchRemotes, batchRate } = this.options;
+    if (!batchRemotes)
+      return this;
+
+    this.janitor.Add(RunService.Heartbeat.Connect(dt => {
       elapsed += dt;
-      if (elapsed >= this.options.batchRate) {
-        elapsed -= this.options.batchRate;
+      if (elapsed >= batchRate) {
+        elapsed -= batchRate;
         this.update();
       }
-    });
+    }));
 
     return this;
   }
@@ -347,7 +357,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
       remote(player, this.getPacket(message, data));
     }
 
-    this.clientQueue.clear();
+    this.clientQueue = [];
     for (const [message, data, unreliable] of this.clientBroadcastQueue) {
       const remote = unreliable
         ? this.serverEvents.sendUnreliableClientMessage
@@ -356,7 +366,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
       remote.broadcast(this.getPacket(message, data));
     }
 
-    this.clientBroadcastQueue.clear();
+    this.clientBroadcastQueue = [];
     for (const [message, data, unreliable] of this.serverQueue) {
       const remote = unreliable
         ? this.clientEvents.sendUnreliableServerMessage
@@ -365,7 +375,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
       remote(this.getPacket(message, data));
     }
 
-    this.serverQueue.clear();
+    this.serverQueue = [];
   }
 
   private runClientMiddlewares<Kind extends keyof MessageData>(
