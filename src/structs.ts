@@ -9,23 +9,28 @@ export type ServerMessageCallback<T = unknown> = (player: Player, data: T) => vo
 export type ServerMessageFunctionCallback<T = unknown, R = unknown> = (player: Player, data: T) => R;
 export type BaseMessage = number;
 
+export interface PacketInfo {
+  readonly packet: SerializedPacket;
+  readonly unreliable: boolean;
+}
+
 export interface SerializedPacket {
   readonly messageBuffer: buffer;
   readonly buffer: buffer;
   readonly blobs: defined[];
 }
 
-export type MessageEvent = (packet: SerializedPacket) => void;
+export type MessageEvent = (packets: SerializedPacket[]) => void;
 export type UnreliableMessageEvent = Networking.Unreliable<MessageEvent>;
 
 export interface ServerEvents {
-  sendServerMessage: MessageEvent;
-  sendUnreliableServerMessage: UnreliableMessageEvent;
+  readonly sendServerMessage: MessageEvent;
+  readonly sendUnreliableServerMessage: UnreliableMessageEvent;
 }
 
 export interface ClientEvents {
-  sendClientMessage: MessageEvent;
-  sendUnreliableClientMessage: UnreliableMessageEvent;
+  readonly sendClientMessage: MessageEvent;
+  readonly sendUnreliableClientMessage: UnreliableMessageEvent;
 }
 export interface MessageMetadata<MessageData, Kind extends keyof MessageData> {
   readonly guard: Modding.Generic<MessageData[Kind], "guard">;
@@ -34,5 +39,5 @@ export interface MessageMetadata<MessageData, Kind extends keyof MessageData> {
 
 export type Guard<T = unknown> = (value: unknown) => value is T;
 export type MessageEmitterMetadata<MessageData> = {
-  [Kind in keyof MessageData]: MessageMetadata<MessageData, Kind>;
+  readonly [Kind in keyof MessageData]: MessageMetadata<MessageData, Kind>;
 };

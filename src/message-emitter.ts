@@ -18,7 +18,8 @@ import type {
   MessageEmitterMetadata,
   MessageMetadata,
   ClientMessageFunctionCallback,
-  ServerMessageFunctionCallback
+  ServerMessageFunctionCallback,
+  PacketInfo
 } from "./structs";
 import Object from "@rbxts/object-utils";
 
@@ -349,33 +350,73 @@ export class MessageEmitter<MessageData> extends Destroyable {
   }
 
   private update(): void {
+    const getPacket = (info: PacketInfo): SerializedPacket => info.packet;
+    if (RunService.IsClient()) {
+      if (this.serverQueue.isEmpty()) return;
+
+      const serverPacketInfos = this.serverQueue.map<PacketInfo>(([message, data, unreliable]) => {
+        const packet = this.getPacket(message, data);
+        return { packet, unreliable };
+      });
+
+      const unreliableServerPackets = serverPacketInfos.filter(info => info.unreliable).map(getPacket);
+      const serverPackets = serverPacketInfos.filter(info => !info.unreliable).map(getPacket);
+      if (!unreliableServerPackets.isEmpty())
+        this.clientEvents.sendUnreliableServerMessage(unreliableServerPackets);
+      if (!serverPackets.isEmpty())
+        this.clientEvents.sendServerMessage(serverPackets);
+
+      this.serverQueue = [];
+      return;
+    }
+
+    const clientPackets = new Map<Player, PacketInfo[]>;
+    const addClientPacket = (player: Player, packetInfo: PacketInfo): void => {
+      const packetList = clientPackets.get(player) ?? [];
+      packetList.push(packetInfo);
+      clientPackets.set(player, packetList);
+    };
+
     for (const [player, message, data, unreliable] of this.clientQueue) {
-      const remote = unreliable
-        ? this.serverEvents.sendUnreliableClientMessage
-        : this.serverEvents.sendClientMessage;
-
-      remote(player, this.getPacket(message, data));
+      const packet = this.getPacket(message, data);
+      const info = { packet, unreliable };
+      if (typeIs(player, "Instance"))
+        addClientPacket(player, info);
+      else
+        for (const p of player)
+          addClientPacket(p, info);
     }
 
-    this.clientQueue = [];
-    for (const [message, data, unreliable] of this.clientBroadcastQueue) {
-      const remote = unreliable
-        ? this.serverEvents.sendUnreliableClientMessage
-        : this.serverEvents.sendClientMessage;
+    if (!this.clientBroadcastQueue.isEmpty()) {
+      const clientBroadcastPackets = this.clientBroadcastQueue.map<PacketInfo>(([message, data, unreliable]) => {
+        const packet = this.getPacket(message, data);
+        return { packet, unreliable };
+      });
 
-      remote.broadcast(this.getPacket(message, data));
+      const unreliableBroadcastPackets = clientBroadcastPackets.filter(info => info.unreliable).map(getPacket);
+      const broadcastPackets = clientBroadcastPackets.filter(info => !info.unreliable).map(getPacket);
+      if (!unreliableBroadcastPackets.isEmpty())
+        this.serverEvents.sendUnreliableClientMessage.broadcast(unreliableBroadcastPackets);
+      if (!broadcastPackets.isEmpty())
+        this.serverEvents.sendClientMessage.broadcast(broadcastPackets);
+
+      this.clientBroadcastQueue = [];
     }
 
-    this.clientBroadcastQueue = [];
-    for (const [message, data, unreliable] of this.serverQueue) {
-      const remote = unreliable
-        ? this.clientEvents.sendUnreliableServerMessage
-        : this.clientEvents.sendServerMessage;
+    if (!this.clientQueue.isEmpty()) {
+      for (const [player, packetInfo] of clientPackets) {
+        if (packetInfo.isEmpty()) continue;
+        if (packetInfo.isEmpty()) continue;
+        const unreliablePackets = packetInfo.filter(info => info.unreliable).map(getPacket);
+        const packets = packetInfo.filter(info => !info.unreliable).map(getPacket);
+        if (!unreliablePackets.isEmpty())
+          this.serverEvents.sendUnreliableClientMessage(player, unreliablePackets);
+        if (!packets.isEmpty())
+          this.serverEvents.sendClientMessage(player, packets);
+      }
 
-      remote(this.getPacket(message, data));
+      this.clientQueue = [];
     }
-
-    this.serverQueue = [];
   }
 
   private runClientMiddlewares<Kind extends keyof MessageData>(
@@ -475,13 +516,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
     return guardPassed
   }
 
-  private onRemoteFire(serializedPacket: SerializedPacket, player?: Player): void {
-    if (buffer.len(serializedPacket.messageBuffer) > 1)
-      return warn("[@rbxts/tether]: Rejected message because message buffer was larger than one byte");
+  private onRemoteFire(serializedPackets: SerializedPacket[], player?: Player): void {
+    for (const packet of serializedPackets) {
+      if (buffer.len(packet.messageBuffer) > 1)
+        return warn("[@rbxts/tether]: Rejected packet because message buffer was larger than one byte");
 
-    const message = buffer.readu8(serializedPacket.messageBuffer, 0) as never;
-    this.executeEventCallbacks(message, serializedPacket, player);
-    this.executeFunctions(message, serializedPacket);
+      const message = buffer.readu8(packet.messageBuffer, 0) as never;
+      this.executeEventCallbacks(message, packet, player);
+      this.executeFunctions(message, packet);
+    }
   }
 
   private executeFunctions(message: keyof MessageData & BaseMessage, serializedPacket: SerializedPacket): void {
