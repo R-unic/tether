@@ -13,6 +13,7 @@ export type ServerMiddleware<Data = unknown> = { _server?: void } & SharedMiddle
 export type SharedMiddleware<Data = unknown> = (ctx: MiddlewareContext<Data>) => DropRequestSymbol | void;
 
 export type Middleware<Data = unknown> = ServerMiddleware<Data> & ClientMiddleware<Data> & SharedMiddleware<Data>;
+
 export interface MiddlewareContext<Data = unknown, Message extends BaseMessage = BaseMessage> {
   readonly message: Message;
   readonly data: Readonly<Data>;

@@ -1,8 +1,10 @@
 import { Modding } from "@flamework/core";
 import { Networking } from "@flamework/networking";
-import { createBinarySerializer, type Serializer, type SerializerMetadata } from "@rbxts/flamework-binary-serializer";
 import { Players, RunService } from "@rbxts/services";
+import type { Serializer, SerializerMetadata } from "@rbxts/serio";
 import Destroyable from "@rbxts/destroyable";
+import Object from "@rbxts/object-utils";
+import createSerializer from "@rbxts/serio";
 import repr from "@rbxts/repr";
 
 import { DropRequest, MiddlewareProvider, type MiddlewareContext } from "./middleware";
@@ -21,7 +23,6 @@ import type {
   ServerMessageFunctionCallback,
   PacketInfo
 } from "./structs";
-import Object from "@rbxts/object-utils";
 
 const remotes = Networking.createEvent<ServerEvents, ClientEvents>();
 const noServerListen = "[@rbxts/tether]: Cannot listen to server message from client";
@@ -518,10 +519,10 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   private onRemoteFire(serializedPackets: SerializedPacket[], player?: Player): void {
     for (const packet of serializedPackets) {
-      if (buffer.len(packet.messageBuffer) > 1)
+      if (buffer.len(packet.messageBuf) > 1)
         return warn("[@rbxts/tether]: Rejected packet because message buffer was larger than one byte");
 
-      const message = buffer.readu8(packet.messageBuffer, 0) as never;
+      const message = buffer.readu8(packet.messageBuf, 0) as never;
       this.executeEventCallbacks(message, packet, player);
       this.executeFunctions(message, packet);
     }
@@ -554,7 +555,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   private deserializeAndValidate(message: keyof MessageData & number, serializedPacket: SerializedPacket) {
     const serializer = this.getSerializer(message);
-    const packet = serializer?.deserialize(serializedPacket.buffer, serializedPacket.blobs);
+    const packet = serializer?.deserialize(serializedPacket);
     this.validateData(message, packet);
     return packet;
   }
@@ -588,16 +589,16 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   private getPacket<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind]): SerializedPacket {
     const serializer = this.getSerializer(message);
-    const messageBuffer = buffer.create(1);
-    buffer.writeu8(messageBuffer, 0, message);
+    const messageBuf = buffer.create(1);
+    buffer.writeu8(messageBuf, 0, message);
     if (serializer === undefined)
       return {
-        messageBuffer,
-        buffer: buffer.create(0),
+        messageBuf,
+        buf: buffer.create(0),
         blobs: []
       };
 
-    return { messageBuffer, ...serializer.serialize(data) };
+    return { messageBuf: messageBuf, ...serializer.serialize(data) };
   }
 
   /** @metadata macro */
@@ -607,7 +608,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   /** @metadata macro */
   private createMessageSerializer<Kind extends keyof MessageData>(meta?: Modding.Many<SerializerMetadata<MessageData[Kind]>>): Serializer<MessageData[Kind]> {
-    return createBinarySerializer<MessageData[Kind]>(meta);
+    return createSerializer<MessageData[Kind]>(meta);
   }
 
   private getSerializer<Kind extends keyof MessageData>(message: Kind & BaseMessage): Serializer<MessageData[Kind] | undefined> | undefined {

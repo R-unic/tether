@@ -1,6 +1,9 @@
 import { Modding } from "@flamework/core";
 import type { Networking } from "@flamework/networking";
-import type { SerializerMetadata } from "@rbxts/flamework-binary-serializer";
+import type {
+  SerializerMetadata, SerializedData,
+  Transform, Vector, String, u8, u16, u32, i8, i16, i32, f16, f24, f32, f64
+} from "@rbxts/serio";
 
 export type MessageCallback<T = unknown> = ServerMessageCallback<T> | ClientMessageCallback<T>;
 export type ClientMessageCallback<T = unknown> = (data: T) => void;
@@ -14,10 +17,8 @@ export interface PacketInfo {
   readonly unreliable: boolean;
 }
 
-export interface SerializedPacket {
-  readonly messageBuffer: buffer;
-  readonly buffer: buffer;
-  readonly blobs: defined[];
+export interface SerializedPacket extends SerializedData {
+  readonly messageBuf: buffer;
 }
 
 export type MessageEvent = (packets: SerializedPacket[]) => void;
@@ -32,9 +33,33 @@ export interface ClientEvents {
   readonly sendClientMessage: MessageEvent;
   readonly sendUnreliableClientMessage: UnreliableMessageEvent;
 }
+
+type Prev = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+type ReplaceByMapWithDepth<T, Depth extends number = 11> =
+  [Depth] extends [never]
+  ? T // stop recursion
+  : T extends Vector
+  ? Vector3
+  : T extends Transform
+  ? CFrame
+  : T extends String
+  ? string
+  : T extends u8 | u16 | u32 | i8 | i16 | i32 | f16 | f24 | f32 | f64
+  ? number
+  : T extends any[]
+  ? ReplaceByMapWithDepth<T[number], Prev[Depth]>[]
+  : T extends object
+  ? { [K in keyof T]: ReplaceByMapWithDepth<T[K], Prev[Depth]>; }
+  : T;
+
 export interface MessageMetadata<MessageData, Kind extends keyof MessageData> {
-  readonly guard: Modding.Generic<MessageData[Kind], "guard">;
-  readonly serializerMetadata: MessageData[Kind] extends undefined ? undefined : Modding.Many<SerializerMetadata<MessageData[Kind]>>;
+  readonly guard: Modding.Generic<
+    ReplaceByMapWithDepth<MessageData[Kind]>,
+    "guard"
+  >;
+  readonly serializerMetadata: MessageData[Kind] extends undefined
+  ? undefined
+  : Modding.Many<SerializerMetadata<MessageData[Kind]>>;
 }
 
 export type Guard<T = unknown> = (value: unknown) => value is T;

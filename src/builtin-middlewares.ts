@@ -1,7 +1,7 @@
 import { Modding } from "@flamework/core";
 import { RunService } from "@rbxts/services";
 import { repeatString } from "@rbxts/flamework-meta-utils";
-import type { SerializerMetadata } from "@rbxts/flamework-binary-serializer";
+import type { SerializerMetadata } from "@rbxts/serio";
 import type { Any } from "ts-toolbelt";
 import repr from "@rbxts/repr";
 
@@ -30,8 +30,10 @@ export namespace BuiltinMiddlewares {
    */
   export function maxPacketSize(maxBytes: number, throwError = true): SharedMiddleware {
     return ctx => {
-      const rawData = ctx.getRawData();
-      const totalSize = buffer.len(rawData.buffer) + rawData.blobs.size() * BLOB_SIZE;
+      const { buf, blobs } = ctx.getRawData();
+      const bufferSize = buf === undefined ? 0 : buffer.len(buf);
+      const blobsSize = blobs === undefined ? 0 : blobs.size() * BLOB_SIZE;
+      const totalSize = bufferSize + blobsSize;
       if (totalSize > maxBytes)
         return throwError
           ? error(`[@rbxts/tether]: Message '${ctx.message}' exceeded maximum packet size of ${maxBytes} bytes`)
@@ -72,9 +74,9 @@ export namespace BuiltinMiddlewares {
    */
   export function debug<T>(schema?: Modding.Many<Any.Equals<T, unknown> extends 1 ? undefined : SerializerMetadata<T>>): SharedMiddleware<T> {
     return ({ message, data, getRawData }) => {
-      const rawData = getRawData();
-      const bufferSize = buffer.len(rawData.buffer);
-      const blobsSize = rawData.blobs.size() * BLOB_SIZE;
+      const { buf, blobs } = getRawData();
+      const bufferSize = buf === undefined ? 0 : buffer.len(buf);
+      const blobsSize = blobs === undefined ? 0 : blobs.size() * BLOB_SIZE;
       const schemaString = schema !== undefined
         ? " " + repr((schema as unknown[])[0], { pretty: true }).split("\n").join("\n ")
         : "unknown";
@@ -86,8 +88,8 @@ export namespace BuiltinMiddlewares {
         " - Message: ", message, "\n",
         " - Data: ", repr(data, { pretty: true }), "\n",
         " - Raw data:\n",
-        "   - Buffer: ", bufferToString(rawData.buffer), "\n",
-        "   - Blobs: ", repr(rawData.blobs, { pretty: false, robloxClassName: true }), "\n",
+        "   - Buffer: ", bufferToString(buf), "\n",
+        "   - Blobs: ", repr(blobs, { pretty: false, robloxClassName: true }), "\n",
         " - Packet size: ", bufferSize + blobsSize, " bytes\n",
         "   - Buffer: ", bufferSize, " bytes\n",
         "   - Blobs: ", blobsSize, " bytes\n",
