@@ -1,6 +1,6 @@
 {
   "name": "@rbxts/tether",
-  "version": "1.3.6",
+  "version": "1.3.7",
   "main": "out/init.lua",
   "scripts": {
     "build": "rbxtsc",
@@ -43,7 +43,7 @@
     "@rbxts/flamework-meta-utils": "^1.0.4",
     "@rbxts/object-utils": "^1.0.4",
     "@rbxts/repr": "^1.0.1",
-    "@rbxts/serio": "^1.0.10",
+    "@rbxts/serio": "^1.0.11",
     "@rbxts/services": "^1.5.5",
     "ts-toolbelt": "^9.6.0"
   }
