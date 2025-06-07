@@ -2,6 +2,8 @@
 
 A message-based networking solution for Roblox with automatic binary serialization and type validation.
 
+This package uses [Serio](https://www.npmjs.com/package/@rbxts/serio) for binary serialization, so to find more info on schemas, check it out!
+
 > [!CAUTION]
 > Depends on `rbxts-transformer-flamework`!
 
@@ -11,7 +13,7 @@ A message-based networking solution for Roblox with automatic binary serializati
 
 ```ts
 import { MessageEmitter } from "@rbxts/tether";
-import type { DataType } from "@rbxts/flamework-binary-serializer";
+import type { Packed, u8 } from "@rbxts/serio";
 
 export const messaging = MessageEmitter.create<MessageData>();
 
@@ -23,9 +25,9 @@ export const enum Message {
 export interface MessageData {
   [Message.Test]: {
     readonly foo: string;
-    readonly n: DataType.u8;
+    readonly n: u8;
   };
-  [Message.Packed]: DataType.Packed<{
+  [Message.Packed]: Packed<{
     readonly boolean1: boolean;
     readonly boolean2: boolean;
     readonly boolean3: boolean;
@@ -72,7 +74,7 @@ For each function you will need two messages. One to invoke the function, and on
 
 ```ts
 import { MessageEmitter } from "@rbxts/tether";
-import type { DataType } from "@rbxts/flamework-binary-serializer";
+import type { u8 } from "@rbxts/serio";
 
 export const messaging = MessageEmitter.create<MessageData>();
 
@@ -82,8 +84,8 @@ export const enum Message {
 }
 
 export interface MessageData {
-  [Message.Increment]: DataType.u8;
-  [Message.IncrementReturn]: DataType.u8;
+  [Message.Increment]: u8;
+  [Message.IncrementReturn]: u8;
 }
 ```
 
@@ -188,7 +190,7 @@ export function incrementNumberData(): ServerMiddleware<number> {
 
 ```ts
 import { MessageEmitter, BuiltinMiddlewares } from "@rbxts/tether";
-import type { DataType } from "@rbxts/flamework-binary-serializer";
+import type { Packed, u8 } from "@rbxts/serio";
 
 export const messaging = MessageEmitter.create<MessageData>();
 messaging.middleware
@@ -212,9 +214,9 @@ export const enum Message {
 export interface MessageData {
   [Message.Test]: {
     readonly foo: string;
-    readonly n: DataType.u8;
+    readonly n: u8;
   };
-  [Message.Packed]: DataType.Packed<{
+  [Message.Packed]: Packed<{
     readonly boolean1: boolean;
     readonly boolean2: boolean;
     readonly boolean3: boolean;
