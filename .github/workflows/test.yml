@@ -1,0 +1,36 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rokit
+        uses: CompeyDev/setup-rokit@v0.1.2
+
+      - name: Install Dependencies
+        run: |
+          npm i
+          cd tests && npm i
+          cd ..
+
+      - name: Run Tests
+        run: |
+          npm test | tee test-output.txt
+          output=$(<test-output.txt)
+          cleaned_output=$(echo "$output" | sed 's/\x1b\[[0-9;]*m//g')
+          cleaned_output=$(echo "$cleaned_output" | sed 's/\x1b\[0m$//')
+          if [[ $cleaned_output =~ Failed:\ 0$ ]]; then
+            exit 0
+          else
+            exit 1
+          fi
