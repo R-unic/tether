@@ -49,13 +49,12 @@ roblox.implementMethod("RunService", "IsStudio", function()
 	return true
 end)
 
-local isServer = true
 roblox.implementMethod("RunService", "IsServer", function()
-	return isServer
+	return false
 end)
 
 roblox.implementMethod("RunService", "IsClient", function()
-	return not isServer
+	return false
 end)
 
 roblox.implementMethod("RunService", "IsRunning", function()
@@ -143,8 +142,6 @@ end
 TS = robloxRequire(game:GetService("ReplicatedStorage"):WaitForChild("rbxts_include"):WaitForChild("RuntimeLib"))
 
 local runTests = game.ReplicatedStorage.Tests["run-tests"]
-runRobloxScript(runTests) -- run both client and server tests
-isServer = false
 runRobloxScript(runTests)
 for _, thread in threads do
 	task.cancel(thread)

@@ -330,11 +330,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   private initialize(): this {
     if (RunService.IsClient()) {
-      this.janitor.Add(this.clientEvents.sendClientMessage.connect(serializedPacket => this.onRemoteFire(serializedPacket)));
-      this.janitor.Add(this.clientEvents.sendUnreliableClientMessage.connect(serializedPacket => this.onRemoteFire(serializedPacket)));
+      if (this.clientEvents !== undefined) {
+        this.janitor.Add(this.clientEvents.sendClientMessage.connect(serializedPacket => this.onRemoteFire(serializedPacket)));
+        this.janitor.Add(this.clientEvents.sendUnreliableClientMessage.connect(serializedPacket => this.onRemoteFire(serializedPacket)));
+      }
     } else {
-      this.janitor.Add(this.serverEvents.sendServerMessage.connect((player, serializedPacket) => this.onRemoteFire(serializedPacket, player)));
-      this.janitor.Add(this.serverEvents.sendUnreliableServerMessage.connect((player, serializedPacket) => this.onRemoteFire(serializedPacket, player)));
+      if (this.serverEvents !== undefined) {
+        this.janitor.Add(this.serverEvents.sendServerMessage.connect((player, serializedPacket) => this.onRemoteFire(serializedPacket, player)));
+        this.janitor.Add(this.serverEvents.sendUnreliableServerMessage.connect((player, serializedPacket) => this.onRemoteFire(serializedPacket, player)));
+      }
     }
 
     let elapsed = 0;
@@ -366,9 +370,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
       const unreliableServerPackets = serverPacketInfos.filter(info => info.unreliable).map(getPacket);
       const serverPackets = serverPacketInfos.filter(info => !info.unreliable).map(getPacket);
       if (!unreliableServerPackets.isEmpty())
-        this.clientEvents.sendUnreliableServerMessage(unreliableServerPackets);
+        this.clientEvents?.sendUnreliableServerMessage(unreliableServerPackets);
       if (!serverPackets.isEmpty())
-        this.clientEvents.sendServerMessage(serverPackets);
+        this.clientEvents?.sendServerMessage(serverPackets);
 
       this.serverQueue = [];
       return;
@@ -400,9 +404,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
       const unreliableBroadcastPackets = clientBroadcastPackets.filter(info => info.unreliable).map(getPacket);
       const broadcastPackets = clientBroadcastPackets.filter(info => !info.unreliable).map(getPacket);
       if (!unreliableBroadcastPackets.isEmpty())
-        this.serverEvents.sendUnreliableClientMessage.broadcast(unreliableBroadcastPackets);
+        this.serverEvents?.sendUnreliableClientMessage.broadcast(unreliableBroadcastPackets);
       if (!broadcastPackets.isEmpty())
-        this.serverEvents.sendClientMessage.broadcast(broadcastPackets);
+        this.serverEvents?.sendClientMessage.broadcast(broadcastPackets);
 
       this.clientBroadcastQueue = [];
     }
@@ -414,9 +418,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
         const unreliablePackets = packetInfo.filter(info => info.unreliable).map(getPacket);
         const packets = packetInfo.filter(info => !info.unreliable).map(getPacket);
         if (!unreliablePackets.isEmpty())
-          this.serverEvents.sendUnreliableClientMessage(player, unreliablePackets);
+          this.serverEvents?.sendUnreliableClientMessage(player, unreliablePackets);
         if (!packets.isEmpty())
-          this.serverEvents.sendClientMessage(player, packets);
+          this.serverEvents?.sendClientMessage(player, packets);
       }
 
       this.clientQueue = [];
