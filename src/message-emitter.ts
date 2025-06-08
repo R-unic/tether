@@ -22,6 +22,7 @@ import type {
   MessageEvent
 } from "./structs";
 
+const IS_LUNE = string.sub(_VERSION, 1, 4) === "Lune";
 declare let setLuneContext: (ctx: "server" | "client" | "both") => void;
 setLuneContext ??= () => { };
 
@@ -43,45 +44,25 @@ interface MessageEmitterOptions {
   readonly batchRate: number;
 }
 
-let clientMessage: RemoteEvent<MessageEvent>;
+let sendMessage: RemoteEvent<MessageEvent>;
 {
-  const name = "clientMessage";
+  const name = "sendMessage";
   const existing = ReplicatedStorage.FindFirstChild(name);
   const remote = (existing ?? new Instance("RemoteEvent", ReplicatedStorage)) as RemoteEvent<MessageEvent>;
   if (existing === undefined)
     remote.Name = name;
 
-  clientMessage = remote;
+  sendMessage = remote;
 }
-let unreliableClientMessage: UnreliableRemoteEvent<MessageEvent>;
+let sendUnreliableMessage: UnreliableRemoteEvent<MessageEvent>;
 {
-  const name = "unreliableClientMessage";
+  const name = "unreliableMessage";
   const existing = ReplicatedStorage.FindFirstChild(name);
   const remote = (existing ?? new Instance("UnreliableRemoteEvent", ReplicatedStorage)) as UnreliableRemoteEvent<MessageEvent>;
   if (existing === undefined)
     remote.Name = name;
 
-  unreliableClientMessage = remote;
-}
-let serverMessage: RemoteEvent<MessageEvent>;
-{
-  const name = "serverMessage";
-  const existing = ReplicatedStorage.FindFirstChild(name);
-  const remote = (existing ?? new Instance("RemoteEvent", ReplicatedStorage)) as RemoteEvent<MessageEvent>;
-  if (existing === undefined)
-    remote.Name = name;
-
-  serverMessage = remote;
-}
-let unreliableServerMessage: UnreliableRemoteEvent<MessageEvent>;
-{
-  const name = "unreliableServerMessage";
-  const existing = ReplicatedStorage.FindFirstChild(name);
-  const remote = (existing ?? new Instance("UnreliableRemoteEvent", ReplicatedStorage)) as UnreliableRemoteEvent<MessageEvent>;
-  if (existing === undefined)
-    remote.Name = name;
-
-  unreliableServerMessage = remote;
+  sendUnreliableMessage = remote;
 }
 
 export class MessageEmitter<MessageData> extends Destroyable {
@@ -362,24 +343,21 @@ export class MessageEmitter<MessageData> extends Destroyable {
   private initialize(): this {
     setLuneContext("client");
     if (RunService.IsClient()) {
-      this.janitor.Add(clientMessage.OnClientEvent.Connect(
-        (...serializedPacket) => this.onRemoteFire(serializedPacket))
+      this.janitor.Add(sendMessage.OnClientEvent.Connect(
+        (...serializedPacket) => this.onRemoteFire(false, serializedPacket))
       );
-      this.janitor.Add(unreliableClientMessage.OnClientEvent.Connect(
-        (...serializedPacket) => this.onRemoteFire(serializedPacket))
+      this.janitor.Add(sendUnreliableMessage.OnClientEvent.Connect(
+        (...serializedPacket) => this.onRemoteFire(false, serializedPacket))
       );
     }
 
     setLuneContext("server");
     if (RunService.IsServer()) {
-      this.janitor.Add(serverMessage.OnServerEvent.Connect(
-        (player, ...serializedPacket) => {
-          print("received sendServerMessage")
-          this.onRemoteFire(serializedPacket as never, player)
-        })
+      this.janitor.Add(sendMessage.OnServerEvent.Connect(
+        (player, ...serializedPacket) => this.onRemoteFire(true, serializedPacket as never, player))
       );
-      this.janitor.Add(unreliableServerMessage.OnServerEvent.Connect(
-        (player, ...serializedPacket) => this.onRemoteFire(serializedPacket as never, player))
+      this.janitor.Add(sendUnreliableMessage.OnServerEvent.Connect(
+        (player, ...serializedPacket) => this.onRemoteFire(true, serializedPacket as never, player))
       );
     }
 
@@ -412,9 +390,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
       const unreliableServerPackets = serverPacketInfos.filter(info => info.unreliable).map(getPacket);
       const serverPackets = serverPacketInfos.filter(info => !info.unreliable).map(getPacket);
       if (!unreliableServerPackets.isEmpty())
-        unreliableServerMessage.FireServer(...unreliableServerPackets);
+        sendUnreliableMessage.FireServer(...unreliableServerPackets);
       if (!serverPackets.isEmpty())
-        serverMessage.FireServer(...serverPackets);
+        sendMessage.FireServer(...serverPackets);
 
       this.serverQueue = [];
       return;
@@ -446,9 +424,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
       const unreliableBroadcastPackets = clientBroadcastPackets.filter(info => info.unreliable).map(getPacket);
       const broadcastPackets = clientBroadcastPackets.filter(info => !info.unreliable).map(getPacket);
       if (!unreliableBroadcastPackets.isEmpty())
-        unreliableClientMessage.FireAllClients(...unreliableBroadcastPackets);
+        sendUnreliableMessage.FireAllClients(...unreliableBroadcastPackets);
       if (!broadcastPackets.isEmpty())
-        clientMessage.FireAllClients(...broadcastPackets);
+        sendMessage.FireAllClients(...broadcastPackets);
 
       this.clientBroadcastQueue = [];
     }
@@ -460,9 +438,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
         const unreliablePackets = packetInfo.filter(info => info.unreliable).map(getPacket);
         const packets = packetInfo.filter(info => !info.unreliable).map(getPacket);
         if (!unreliablePackets.isEmpty())
-          unreliableClientMessage.FireClient(player, ...unreliablePackets);
+          sendUnreliableMessage.FireClient(player, ...unreliablePackets);
         if (!packets.isEmpty())
-          clientMessage.FireClient(player, ...packets);
+          sendMessage.FireClient(player, ...packets);
       }
 
       this.clientQueue = [];
@@ -566,19 +544,18 @@ export class MessageEmitter<MessageData> extends Destroyable {
     return guardPassed
   }
 
-  private onRemoteFire(serializedPackets: SerializedPacket[], player?: Player): void {
+  private onRemoteFire(isServer: boolean, serializedPackets: SerializedPacket[], player?: Player): void {
     for (const packet of serializedPackets) {
       if (buffer.len(packet.messageBuf) > 1)
         return warn("[@rbxts/tether]: Rejected packet because message buffer was larger than one byte");
 
       const message = buffer.readu8(packet.messageBuf, 0) as never;
-      this.executeEventCallbacks(message, packet, player);
-      this.executeFunctions(message, packet);
+      this.executeEventCallbacks(isServer, message, packet, player);
+      this.executeFunctions(isServer, message, packet);
     }
   }
 
-  private executeFunctions(message: keyof MessageData & BaseMessage, serializedPacket: SerializedPacket): void {
-    const isServer = RunService.IsServer();
+  private executeFunctions(isServer: boolean, message: keyof MessageData & BaseMessage, serializedPacket: SerializedPacket): void {
     const functionsMap = isServer ? this.serverFunctions : this.clientFunctions;
     const functions = functionsMap.get(message);
     if (functions === undefined) return;
@@ -588,8 +565,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
       callback(packet);
   }
 
-  private executeEventCallbacks(message: keyof MessageData & BaseMessage, serializedPacket: SerializedPacket, player?: Player): void {
-    const isServer = RunService.IsServer();
+  private executeEventCallbacks(isServer: boolean, message: keyof MessageData & BaseMessage, serializedPacket: SerializedPacket, player?: Player): void {
     const callbacksMap = isServer ? this.serverCallbacks : this.clientCallbacks;
     const callbacks: Set<MessageCallback> | undefined = callbacksMap.get(message);
     if (callbacks === undefined) return;

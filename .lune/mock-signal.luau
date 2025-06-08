@@ -230,11 +230,9 @@ function Signal:Connect(fn)
 
 	if self._handlerListHead then
 		connection._next = self._handlerListHead
-		self._handlerListHead = connection
-	else
-		self._handlerListHead = connection
 	end
 
+  self._handlerListHead = connection
 	return connection
 end
 
