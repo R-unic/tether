@@ -1,11 +1,12 @@
 {
   "name": "@rbxts/tether",
   "version": "1.3.13",
-  "main": "out/init.lua",
+  "main": "out/init.luau",
   "scripts": {
-    "build": "rbxtsc",
-    "watch": "rbxtsc -w",
-    "prepublishOnly": "npm run build"
+    "setup-rokit": "rokit trust lune-org/lune && rokit trust rojo-rbx/rojo && rokit install",
+    "build": "npm run setup-rokit && rbxtsc ",
+    "prepublishOnly": "npm test && rbxtsc",
+    "test": "npm run build -- -p tests && rojo build tests -o tests/test-environment.rbxl && lune run tests tests/test-environment.rbxl"
   },
   "keywords": [
     "roblox",
