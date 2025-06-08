@@ -1,6 +1,5 @@
 import { Modding } from "@flamework/core";
-import { Networking } from "@flamework/networking";
-import { Players, RunService } from "@rbxts/services";
+import { Players, ReplicatedStorage, RunService } from "@rbxts/services";
 import type { Serializer, SerializerMetadata } from "@rbxts/serio";
 import Destroyable from "@rbxts/destroyable";
 import Object from "@rbxts/object-utils";
@@ -10,9 +9,7 @@ import repr from "@rbxts/repr";
 import { DropRequest, MiddlewareProvider, type MiddlewareContext } from "./middleware";
 import type {
   SerializedPacket,
-  ClientEvents,
   ClientMessageCallback,
-  ServerEvents,
   ServerMessageCallback,
   MessageCallback,
   BaseMessage,
@@ -21,12 +18,14 @@ import type {
   MessageMetadata,
   ClientMessageFunctionCallback,
   ServerMessageFunctionCallback,
-  PacketInfo
+  PacketInfo,
+  MessageEvent
 } from "./structs";
 
-const IS_LUNE = string.sub(_VERSION, 1, 4) === "Lune";
+declare let setLuneContext: (ctx: "server" | "client" | "both") => void;
+setLuneContext ??= () => { };
 
-const remotes = Networking.createEvent<ServerEvents, ClientEvents>();
+setLuneContext("both");
 const noServerListen = "[@rbxts/tether]: Cannot listen to server message from client";
 const noClientListen = "[@rbxts/tether]: Cannot listen to client message from server";
 const metaGenerationFailed =
@@ -44,6 +43,47 @@ interface MessageEmitterOptions {
   readonly batchRate: number;
 }
 
+let clientMessage: RemoteEvent<MessageEvent>;
+{
+  const name = "clientMessage";
+  const existing = ReplicatedStorage.FindFirstChild(name);
+  const remote = (existing ?? new Instance("RemoteEvent", ReplicatedStorage)) as RemoteEvent<MessageEvent>;
+  if (existing === undefined)
+    remote.Name = name;
+
+  clientMessage = remote;
+}
+let unreliableClientMessage: UnreliableRemoteEvent<MessageEvent>;
+{
+  const name = "unreliableClientMessage";
+  const existing = ReplicatedStorage.FindFirstChild(name);
+  const remote = (existing ?? new Instance("UnreliableRemoteEvent", ReplicatedStorage)) as UnreliableRemoteEvent<MessageEvent>;
+  if (existing === undefined)
+    remote.Name = name;
+
+  unreliableClientMessage = remote;
+}
+let serverMessage: RemoteEvent<MessageEvent>;
+{
+  const name = "serverMessage";
+  const existing = ReplicatedStorage.FindFirstChild(name);
+  const remote = (existing ?? new Instance("RemoteEvent", ReplicatedStorage)) as RemoteEvent<MessageEvent>;
+  if (existing === undefined)
+    remote.Name = name;
+
+  serverMessage = remote;
+}
+let unreliableServerMessage: UnreliableRemoteEvent<MessageEvent>;
+{
+  const name = "unreliableServerMessage";
+  const existing = ReplicatedStorage.FindFirstChild(name);
+  const remote = (existing ?? new Instance("UnreliableRemoteEvent", ReplicatedStorage)) as UnreliableRemoteEvent<MessageEvent>;
+  if (existing === undefined)
+    remote.Name = name;
+
+  unreliableServerMessage = remote;
+}
+
 export class MessageEmitter<MessageData> extends Destroyable {
   public readonly middleware = new MiddlewareProvider<MessageData>;
 
@@ -56,8 +96,6 @@ export class MessageEmitter<MessageData> extends Destroyable {
   private serverQueue: [keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
   private clientBroadcastQueue: [keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
   private clientQueue: [Player | Player[], keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
-  private serverEvents!: ReturnType<typeof remotes.createServer>;
-  private clientEvents!: ReturnType<typeof remotes.createClient>;
 
   /** @metadata macro */
   public static create<MessageData>(
@@ -90,14 +128,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
       this.clientCallbacks.clear();
       this.serverCallbacks.clear();
       table.clear(this.serializers);
-      this.serverEvents = undefined!;
-      this.clientEvents = undefined!;
     });
-
-    if (RunService.IsServer())
-      this.serverEvents = remotes.createServer({});
-    else
-      this.clientEvents = remotes.createClient({});
   }
 
   public readonly server = {
@@ -329,16 +360,27 @@ export class MessageEmitter<MessageData> extends Destroyable {
   };
 
   private initialize(): this {
+    setLuneContext("client");
     if (RunService.IsClient()) {
-      if (this.clientEvents !== undefined) {
-        this.janitor.Add(this.clientEvents.sendClientMessage.connect(serializedPacket => this.onRemoteFire(serializedPacket)));
-        this.janitor.Add(this.clientEvents.sendUnreliableClientMessage.connect(serializedPacket => this.onRemoteFire(serializedPacket)));
-      }
-    } else {
-      if (this.serverEvents !== undefined) {
-        this.janitor.Add(this.serverEvents.sendServerMessage.connect((player, serializedPacket) => this.onRemoteFire(serializedPacket, player)));
-        this.janitor.Add(this.serverEvents.sendUnreliableServerMessage.connect((player, serializedPacket) => this.onRemoteFire(serializedPacket, player)));
-      }
+      this.janitor.Add(clientMessage.OnClientEvent.Connect(
+        (...serializedPacket) => this.onRemoteFire(serializedPacket))
+      );
+      this.janitor.Add(unreliableClientMessage.OnClientEvent.Connect(
+        (...serializedPacket) => this.onRemoteFire(serializedPacket))
+      );
+    }
+
+    setLuneContext("server");
+    if (RunService.IsServer()) {
+      this.janitor.Add(serverMessage.OnServerEvent.Connect(
+        (player, ...serializedPacket) => {
+          print("received sendServerMessage")
+          this.onRemoteFire(serializedPacket as never, player)
+        })
+      );
+      this.janitor.Add(unreliableServerMessage.OnServerEvent.Connect(
+        (player, ...serializedPacket) => this.onRemoteFire(serializedPacket as never, player))
+      );
     }
 
     let elapsed = 0;
@@ -348,10 +390,10 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
     this.janitor.Add(RunService.Heartbeat.Connect(dt => {
       elapsed += dt;
-      if (elapsed >= batchRate) {
-        elapsed -= batchRate;
-        this.update();
-      }
+      if (elapsed < batchRate) return;
+
+      elapsed -= batchRate;
+      this.update();
     }));
 
     return this;
@@ -370,9 +412,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
       const unreliableServerPackets = serverPacketInfos.filter(info => info.unreliable).map(getPacket);
       const serverPackets = serverPacketInfos.filter(info => !info.unreliable).map(getPacket);
       if (!unreliableServerPackets.isEmpty())
-        this.clientEvents?.sendUnreliableServerMessage(unreliableServerPackets);
+        unreliableServerMessage.FireServer(...unreliableServerPackets);
       if (!serverPackets.isEmpty())
-        this.clientEvents?.sendServerMessage(serverPackets);
+        serverMessage.FireServer(...serverPackets);
 
       this.serverQueue = [];
       return;
@@ -404,9 +446,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
       const unreliableBroadcastPackets = clientBroadcastPackets.filter(info => info.unreliable).map(getPacket);
       const broadcastPackets = clientBroadcastPackets.filter(info => !info.unreliable).map(getPacket);
       if (!unreliableBroadcastPackets.isEmpty())
-        this.serverEvents?.sendUnreliableClientMessage.broadcast(unreliableBroadcastPackets);
+        unreliableClientMessage.FireAllClients(...unreliableBroadcastPackets);
       if (!broadcastPackets.isEmpty())
-        this.serverEvents?.sendClientMessage.broadcast(broadcastPackets);
+        clientMessage.FireAllClients(...broadcastPackets);
 
       this.clientBroadcastQueue = [];
     }
@@ -418,9 +460,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
         const unreliablePackets = packetInfo.filter(info => info.unreliable).map(getPacket);
         const packets = packetInfo.filter(info => !info.unreliable).map(getPacket);
         if (!unreliablePackets.isEmpty())
-          this.serverEvents?.sendUnreliableClientMessage(player, unreliablePackets);
+          unreliableClientMessage.FireClient(player, ...unreliablePackets);
         if (!packets.isEmpty())
-          this.serverEvents?.sendClientMessage(player, packets);
+          clientMessage.FireClient(player, ...packets);
       }
 
       this.clientQueue = [];
@@ -564,6 +606,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const serializer = this.getSerializer(message);
     const packet = serializer?.deserialize(serializedPacket);
     this.validateData(message, packet);
+
     return packet;
   }
 

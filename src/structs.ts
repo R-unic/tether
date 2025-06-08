@@ -1,5 +1,4 @@
 import type { Modding } from "@flamework/core";
-import type { Networking } from "@flamework/networking";
 import type {
   SerializerMetadata, SerializedData,
   Transform, Vector, String, u8, u16, u32, i8, i16, i32, f16, f24, f32, f64
@@ -21,18 +20,7 @@ export interface SerializedPacket extends SerializedData {
   readonly messageBuf: buffer;
 }
 
-export type MessageEvent = (packets: SerializedPacket[]) => void;
-export type UnreliableMessageEvent = Networking.Unreliable<MessageEvent>;
-
-export interface ServerEvents {
-  readonly sendServerMessage: MessageEvent;
-  readonly sendUnreliableServerMessage: UnreliableMessageEvent;
-}
-
-export interface ClientEvents {
-  readonly sendClientMessage: MessageEvent;
-  readonly sendUnreliableClientMessage: UnreliableMessageEvent;
-}
+export type MessageEvent = (...packets: SerializedPacket[]) => void;
 
 type Prev = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 type ReplaceByMapWithDepth<T, Depth extends number = 11> =
