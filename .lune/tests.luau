@@ -49,12 +49,13 @@ roblox.implementMethod("RunService", "IsStudio", function()
 	return true
 end)
 
+local isServer = true
 roblox.implementMethod("RunService", "IsServer", function()
-	return true
+	return isServer
 end)
 
 roblox.implementMethod("RunService", "IsClient", function()
-	return false
+	return not isServer
 end)
 
 roblox.implementMethod("RunService", "IsRunning", function()
@@ -63,6 +64,36 @@ end)
 
 roblox.implementMethod("DataModel", "IsLoaded", function()
 	return true
+end)
+
+roblox.implementProperty("UnreliableRemoteEvent", "OnClientEvent", function()
+	return signal.new()
+end)
+
+roblox.implementProperty("UnreliableRemoteEvent", "OnServerEvent", function()
+	return signal.new()
+end)
+
+roblox.implementProperty("RemoteEvent", "OnClientEvent", function()
+	return signal.new()
+end)
+
+roblox.implementProperty("RemoteEvent", "OnServerEvent", function()
+	return signal.new()
+end)
+
+roblox.implementMethod("RemoteEvent", "FireServer", function(self, ...)
+  return self.OnServerEvent:Fire(game.Players.LocalPlayer, ...)
+end)
+
+roblox.implementMethod("RemoteEvent", "FireClient", function(self, player, ...)
+  return self.OnClientEvent:Fire(...)
+end)
+
+roblox.implementMethod("RemoteEvent", "FireAllClients", function(self, ...)
+  for _ in game.Players:GetPlayers() do
+    self.OnClientEvent:Fire(...)
+  end
 end)
 
 roblox.implementProperty("Players", "LocalPlayer", function()
@@ -74,6 +105,7 @@ roblox.implementMethod("HttpService", "JSONEncode", function()
 end)
 
 local robloxRequire
+local TS
 local function runRobloxScript(script: Script | LocalScript | ModuleScript)
 	local callableFn = luau.load(luau.compile(script.Source), {
 		debugName = script:GetFullName(),
@@ -85,6 +117,7 @@ local function runRobloxScript(script: Script | LocalScript | ModuleScript)
 			tick = tick,
 			task = task,
 			debug = debug,
+      TS = TS
 		})
 	})
 
@@ -107,7 +140,12 @@ function robloxRequire(moduleScript: ModuleScript)
 	return table.unpack(result)
 end
 
-runRobloxScript(game.ReplicatedStorage.Tests["run-tests"])
+TS = robloxRequire(game:GetService("ReplicatedStorage"):WaitForChild("rbxts_include"):WaitForChild("RuntimeLib"))
+
+local runTests = game.ReplicatedStorage.Tests["run-tests"]
+runRobloxScript(runTests) -- run both client and server tests
+isServer = false
+runRobloxScript(runTests)
 for _, thread in threads do
 	task.cancel(thread)
 end

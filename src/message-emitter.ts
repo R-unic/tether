@@ -24,6 +24,8 @@ import type {
   PacketInfo
 } from "./structs";
 
+const IS_LUNE = string.sub(_VERSION, 1, 4) === "Lune";
+
 const remotes = Networking.createEvent<ServerEvents, ClientEvents>();
 const noServerListen = "[@rbxts/tether]: Cannot listen to server message from client";
 const noClientListen = "[@rbxts/tether]: Cannot listen to client message from server";
@@ -36,6 +38,7 @@ const defaultMesssageEmitterOptions: MessageEmitterOptions = {
   batchRemotes: true,
   batchRate: 1 / 24
 }
+
 interface MessageEmitterOptions {
   readonly batchRemotes: boolean;
   readonly batchRate: number;

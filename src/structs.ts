@@ -1,4 +1,4 @@
-import { Modding } from "@flamework/core";
+import type { Modding } from "@flamework/core";
 import type { Networking } from "@flamework/networking";
 import type {
   SerializerMetadata, SerializedData,
