@@ -43,7 +43,7 @@
     "@rbxts/flamework-meta-utils": "^1.0.6",
     "@rbxts/object-utils": "^1.0.4",
     "@rbxts/repr": "^1.0.1",
-    "@rbxts/serio": "^1.0.17",
+    "@rbxts/serio": "^1.0.18",
     "@rbxts/services": "^1.5.5",
     "ts-toolbelt": "^9.6.0"
   }
