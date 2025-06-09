@@ -12,6 +12,7 @@ function waitForCollected(collection: unknown[]): void {
 
 function getCollectedMessage<T extends defined>(collection: T[], predicate: (data: T) => boolean): T {
   waitForCollected(collection);
+  Assert.notEmpty(collection);
 
   const index = collection.findIndex(predicate);
   Assert.notEqual(-1, index);
