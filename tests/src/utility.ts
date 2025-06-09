@@ -1,5 +1,5 @@
 import { MessageEmitter } from "@rbxts/tether";
-import type { u8 } from "@rbxts/serio";
+import type { u8, i16 } from "@rbxts/serio";
 
 // declare function setLuneContext(ctx: "server" | "client" | "both"): void;
 
@@ -11,5 +11,5 @@ export const enum Message {
 }
 
 export interface TestMessageData {
-  [Message.ToServer]: u8;
+  [Message.ToServer]: u8 | i16;
 }

@@ -12,6 +12,13 @@ class MessageSendTest {
     Assert.doesNotThrow(() => messaging.server.emit(Message.ToServer, 69));
     setLuneContext("server");
   }
+
+  @Fact
+  public sendsUnreliableToServer(): void {
+    setLuneContext("client");
+    Assert.doesNotThrow(() => messaging.server.emit(Message.ToServer, -420, true));
+    setLuneContext("server");
+  }
 }
 
 export = MessageSendTest;
