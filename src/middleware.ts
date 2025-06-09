@@ -148,4 +148,73 @@ export class MiddlewareProvider<MessageData> {
     this.useClientGlobal(client, order);
     return this.useServerGlobal(middlewares, order);
   }
+
+  public deleteSharedGlobal<Kind extends keyof MessageData>(
+    middlewares: SharedMiddleware<MessageData[Kind]> | readonly SharedMiddleware<MessageData[Kind]>[] | SharedMiddleware | readonly SharedMiddleware[]
+  ): void {
+    const server = middlewares as ServerMiddleware<MessageData[Kind]> | ServerMiddleware<MessageData[Kind]>[];
+    const client = (typeIs(middlewares, "function") ? [middlewares] : middlewares)
+      .map<ClientMiddleware<MessageData[Kind]>>(middleware => (_, ctx) => middleware(ctx as never));
+
+    this.deleteClientGlobal(client);
+    this.deleteServerGlobal(server);
+  }
+
+  public deleteClientGlobal<Kind extends keyof MessageData>(
+    middlewares: ClientMiddleware<MessageData[Kind]> | readonly ClientMiddleware<MessageData[Kind]>[] | ClientMiddleware | readonly ClientMiddleware[]
+  ): void {
+    const clientMiddlewares = this.getClientGlobal();
+    if (typeIs(middlewares, "function"))
+      clientMiddlewares.remove(clientMiddlewares.indexOf(middlewares as never));
+    else
+      for (const middleware of middlewares)
+        this.deleteClientGlobal(middleware);
+  }
+
+  public deleteServerGlobal<Kind extends keyof MessageData>(
+    middlewares: ServerMiddleware<MessageData[Kind]> | readonly ServerMiddleware<MessageData[Kind]>[] | ServerMiddleware | readonly ServerMiddleware[]
+  ): void {
+    const serverMiddlewares = this.getServerGlobal();
+    if (typeIs(middlewares, "function"))
+      serverMiddlewares.remove(serverMiddlewares.indexOf(middlewares as never));
+    else
+      for (const middleware of middlewares)
+        this.deleteServerGlobal(middleware);
+  }
+
+  public deleteShared<Kind extends keyof MessageData>(
+    message: Kind & BaseMessage,
+    middlewares: SharedMiddleware<MessageData[Kind]> | readonly SharedMiddleware<MessageData[Kind]>[] | SharedMiddleware | readonly SharedMiddleware[]
+  ): void {
+    const server = middlewares as ServerMiddleware<MessageData[Kind]> | ServerMiddleware<MessageData[Kind]>[];
+    const client = (typeIs(middlewares, "function") ? [middlewares] : middlewares)
+      .map<ClientMiddleware<MessageData[Kind]>>(middleware => (_, ctx) => middleware(ctx as never));
+
+    this.deleteClient(message, client);
+    this.deleteServer(message, server);
+  }
+
+  public deleteClient<Kind extends keyof MessageData>(
+    message: Kind & BaseMessage,
+    middlewares: ClientMiddleware<MessageData[Kind]> | readonly ClientMiddleware<MessageData[Kind]>[] | ClientMiddleware | readonly ClientMiddleware[]
+  ): void {
+    const clientMiddlewares = this.getClient(message);
+    if (typeIs(middlewares, "function"))
+      clientMiddlewares.remove(clientMiddlewares.indexOf(middlewares as never));
+    else
+      for (const middleware of middlewares)
+        this.deleteClient(message, middleware);
+  }
+
+  public deleteServer<Kind extends keyof MessageData>(
+    message: Kind & BaseMessage,
+    middlewares: ServerMiddleware<MessageData[Kind]> | readonly ServerMiddleware<MessageData[Kind]>[] | ServerMiddleware | readonly ServerMiddleware[]
+  ): void {
+    const serverMiddlewares = this.getServer(message);
+    if (typeIs(middlewares, "function"))
+      serverMiddlewares.remove(serverMiddlewares.indexOf(middlewares as never));
+    else
+      for (const middleware of middlewares)
+        this.deleteServer(message, middleware);
+  }
 }

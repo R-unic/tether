@@ -12,21 +12,20 @@ class MessageSendTest {
   public middlewareUpdatesData(): void {
     const value = 70;
     setLuneContext("client");
-    messaging.middleware.useServer(
-      Message.ToServerWithMiddleware,
-      (ctx => {
-        Assert.equal(value, ctx.data);
-        Assert.equal(Message.ToServerWithMiddleware, ctx.message);
+    const middleware = (ctx => {
+      Assert.equal(value, ctx.data);
+      Assert.equal(Message.ToServerWithMiddleware, ctx.message);
 
-        const { messageBuf, buf, blobs } = ctx.getRawData();
-        Assert.defined(buf);
-        Assert.undefined(blobs);
-        Assert.equal(1, buffer.len(messageBuf));
-        Assert.equal(1, buffer.len(buf));
-        Assert.equal(value - 1, --ctx.data);
-      }) as SharedMiddleware<TestMessageData[Message.ToServer]>,
-    );
+      const { messageBuf, buf, blobs } = ctx.getRawData();
+      Assert.defined(buf);
+      Assert.undefined(blobs);
+      Assert.equal(1, buffer.len(messageBuf));
+      Assert.equal(1, buffer.len(buf));
+      Assert.equal(value - 1, --ctx.data);
+    }) as SharedMiddleware<TestMessageData[Message.ToServer]>;
+    messaging.middleware.useServer(Message.ToServerWithMiddleware, middleware);
     Assert.doesNotThrow(() => messaging.server.emit(Message.ToServerWithMiddleware, value));
+    messaging.middleware.deleteServer(Message.ToServerWithMiddleware, middleware);
     setLuneContext("server");
   }
 
