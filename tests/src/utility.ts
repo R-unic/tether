@@ -8,10 +8,12 @@ export const messaging = MessageEmitter.create<TestMessageData>({ batchRemotes: 
 
 export const enum Message {
   ToServer,
-  ToClient
+  ToServerWithMiddleware,
+  ToClient,
 }
 
 export interface TestMessageData {
-  [Message.ToServer]: u8 | i16;
-  [Message.ToClient]: u8 | i16;
+  [Message.ToServer]: i16;
+  [Message.ToServerWithMiddleware]: u8;
+  [Message.ToClient]: i16;
 }

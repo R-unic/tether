@@ -459,36 +459,35 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const ctx: MiddlewareContext<MessageData[Kind], Kind & BaseMessage> = {
       message,
       data: data!,
-      updateData: (newData?: MessageData[Kind]) => void (data = newData),
       getRawData: () => this.getPacket(message, data)
     };
 
     for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>()) {
       const result = globalMiddleware(players, ctx);
-      if (!this.validateData(message, data, "Invalid data after global client middleware"))
-        return [false, data!];
+      if (!this.validateData(message, ctx.data, "Invalid data after global client middleware"))
+        return [false, ctx.data];
 
       if (result === DropRequest) {
         this.middleware.notifyRequestDropped(message, "Global client middleware");
-        return [true, data!];
+        return [true, ctx.data];
       }
     }
 
     for (const middleware of this.middleware.getClient(message)) {
       const result = middleware(players, ctx);
-      if (!this.validateData(message, data, "Invalid data after client middleware"))
-        return [false, data!];
+      if (!this.validateData(message, ctx.data, "Invalid data after client middleware"))
+        return [false, ctx.data];
 
       if (result === DropRequest) {
         this.middleware.notifyRequestDropped(message, "Client middleware");
-        return [true, data!];
+        return [true, ctx.data];
       }
     }
 
-    if (!this.validateData(message, data))
-      return [true, data!];
+    if (!this.validateData(message, ctx.data))
+      return [true, ctx.data];
 
-    return [false, data!];
+    return [false, ctx.data];
   }
 
   private runServerMiddlewares<Kind extends keyof MessageData>(
@@ -501,36 +500,35 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const ctx: MiddlewareContext<MessageData[Kind], Kind & BaseMessage> = {
       message,
       data: data!,
-      updateData: (newData?: MessageData[Kind]) => void (data = newData),
       getRawData: () => this.getPacket(message, data)
     };
 
     for (const globalMiddleware of this.middleware.getServerGlobal<MessageData[Kind]>()) {
-      if (!this.validateData(message, data, "Invalid data after global server middleware"))
-        return [false, data!];
+      if (!this.validateData(message, ctx.data, "Invalid data after global server middleware"))
+        return [false, ctx.data];
 
       const result = globalMiddleware(ctx);
       if (result === DropRequest) {
         this.middleware.notifyRequestDropped(message, "Global server middleware");
-        return [true, data!];
+        return [true, ctx.data];
       }
     }
 
     for (const middleware of this.middleware.getServer(message)) {
-      if (!this.validateData(message, data, "Invalid data after server middleware"))
-        return [false, data!];
+      if (!this.validateData(message, ctx.data, "Invalid data after server middleware"))
+        return [false, ctx.data];
 
       const result = middleware(ctx);
       if (result === DropRequest) {
         this.middleware.notifyRequestDropped(message, "Server middleware");
-        return [true, data!];
+        return [true, ctx.data];
       }
     }
 
-    if (!this.validateData(message, data))
-      return [true, data!];
+    if (!this.validateData(message, ctx.data))
+      return [true, ctx.data];
 
-    return [false, data!];
+    return [false, ctx.data];
   }
 
   private validateData(message: keyof MessageData & BaseMessage, data: unknown, requestDropReason = "Invalid data"): boolean {

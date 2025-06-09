@@ -182,7 +182,7 @@ import type { ServerMiddleware } from "@rbxts/tether";
 
 export function incrementNumberData(): ServerMiddleware<number> {
   // sets the data to be used by the any subsequent middlewares as well as sent through the remote
-  return ({ data, updateData }) => updateData(data + 1);
+  return (ctx) => ctx.data++;
 }
 ```
 

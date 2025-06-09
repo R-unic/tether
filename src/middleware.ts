@@ -16,8 +16,7 @@ export type Middleware<Data = unknown> = ServerMiddleware<Data> & ClientMiddlewa
 
 export interface MiddlewareContext<Data = unknown, Message extends BaseMessage = BaseMessage> {
   readonly message: Message;
-  readonly data: Readonly<Data>;
-  updateData: (newData: Data) => void;
+  data: Data;
   getRawData: () => SerializedPacket;
 }
 
