@@ -7,9 +7,11 @@ import type { u8, i16 } from "@rbxts/serio";
 export const messaging = MessageEmitter.create<TestMessageData>({ batchRemotes: false });
 
 export const enum Message {
-  ToServer
+  ToServer,
+  ToClient
 }
 
 export interface TestMessageData {
   [Message.ToServer]: u8 | i16;
+  [Message.ToClient]: u8 | i16;
 }

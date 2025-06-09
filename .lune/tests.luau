@@ -74,6 +74,11 @@ roblox.implementMethod("RunService", "IsRunning", function()
 	return false
 end)
 
+local localPlayer = roblox.Instance.new("Player")
+roblox.implementMethod("Players", "GetPlayers", function(): { Player }
+	return { localPlayer }
+end)
+
 roblox.implementMethod("DataModel", "IsLoaded", function()
 	return true
 end)
@@ -94,7 +99,7 @@ roblox.implementProperty("RemoteEvent", "OnServerEvent", function(self)
 end)
 
 roblox.implementMethod("RemoteEvent", "FireServer", function(self, ...)
-  self.OnServerEvent:Fire(roblox.Instance.new("Player"), ...)
+  self.OnServerEvent:Fire(localPlayer, ...)
 end)
 
 roblox.implementMethod("RemoteEvent", "FireClient", function(self, player, ...)
@@ -122,7 +127,7 @@ roblox.implementProperty("UnreliableRemoteEvent", "OnServerEvent", function(self
 end)
 
 roblox.implementMethod("UnreliableRemoteEvent", "FireServer", function(self, ...)
-  self.OnServerEvent:Fire(roblox.Instance.new("Player"), ...)
+  self.OnServerEvent:Fire(localPlayer, ...)
 end)
 
 roblox.implementMethod("UnreliableRemoteEvent", "FireClient", function(self, player, ...)
@@ -130,7 +135,7 @@ roblox.implementMethod("UnreliableRemoteEvent", "FireClient", function(self, pla
 end)
 
 roblox.implementMethod("UnreliableRemoteEvent", "FireAllClients", function(self, ...)
-  for _ in roblox.game.Players:GetPlayers() do
+  for _ in game.Players:GetPlayers() do
     self.OnClientEvent:Fire(...)
   end
 end)
@@ -157,7 +162,8 @@ local function runRobloxScript(script: Script | LocalScript | ModuleScript): any
 			task = task,
 			debug = debug,
       TS = TS,
-      setLuneContext = setLuneContext
+      setLuneContext = setLuneContext,
+      localPlayer = localPlayer
 		})
 	})
 
