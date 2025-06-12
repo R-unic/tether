@@ -1,7 +1,7 @@
 import type { Modding } from "@flamework/core";
 import type {
   SerializerMetadata, SerializedData,
-  Packed, Transform, Vector, String, List, HashMap, HashSet, Tuple,
+  Transform, Vector, String,
   u8, u16, u24, u32, i8, i16, i24, i32, f16, f24, f32, f64
 } from "@rbxts/serio";
 
