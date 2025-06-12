@@ -1,7 +1,8 @@
 import type { Modding } from "@flamework/core";
 import type {
   SerializerMetadata, SerializedData,
-  Transform, Vector, String, u8, u16, u32, i8, i16, i32, f16, f24, f32, f64
+  Transform, Vector, String, u8, u16, u32, i8, i16, i32, f16, f24, f32, f64,
+  Packed
 } from "@rbxts/serio";
 
 export type MessageCallback<T = unknown> = ServerMessageCallback<T> | ClientMessageCallback<T>;
@@ -32,6 +33,8 @@ type ReplaceByMapWithDepth<T, Depth extends number = 11> =
   ? CFrame
   : T extends String
   ? string
+  : T extends Packed<infer P>
+  ? P
   : T extends u8 | u16 | u32 | i8 | i16 | i32 | f16 | f24 | f32 | f64
   ? number
   : T extends any[]
