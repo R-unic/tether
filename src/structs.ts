@@ -23,8 +23,8 @@ export interface SerializedPacket extends SerializedData {
 
 export type MessageEvent = (...packets: SerializedPacket[]) => void;
 
-type Prev = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-type ReplaceByMapWithDepth<T, Depth extends number = 11> =
+type Prev = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
+type ReplaceByMapWithDepth<T, Depth extends number = 24> =
   [Depth] extends [never]
   ? T // stop recursion
   : T extends Vector
@@ -34,15 +34,15 @@ type ReplaceByMapWithDepth<T, Depth extends number = 11> =
   : T extends String
   ? string
   : T extends { _packed: [infer V] }
-  ? V
+  ? ReplaceByMapWithDepth<V, Prev[Depth]>
   : T extends { _list: [infer V] }
-  ? V[]
+  ? ReplaceByMapWithDepth<V, Depth>
   : T extends { _tuple: [infer A] }
-  ? A
+  ? ReplaceByMapWithDepth<A, Prev[Depth]>
   : T extends { _set: [infer V] }
-  ? Set<V>
+  ? Set<ReplaceByMapWithDepth<V, Prev[Depth]>>
   : T extends { _map: [infer K, infer V] }
-  ? Map<K, V>
+  ? Map<ReplaceByMapWithDepth<K, Prev[Depth]>, ReplaceByMapWithDepth<V, Prev[Depth]>>
   : T extends u8 | u16 | u24 | u32 | i8 | i16 | i24 | i32 | f16 | f24 | f32 | f64
   ? number
   : T extends any[]
