@@ -27,6 +27,8 @@ type Prev = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
 type ReplaceByMapWithDepth<T, Depth extends number = 24> =
   [Depth] extends [never]
   ? T // stop recursion
+  : T extends Callback
+  ? T
   : T extends Vector
   ? Vector3
   : T extends Transform
@@ -47,6 +49,8 @@ type ReplaceByMapWithDepth<T, Depth extends number = 24> =
   ? number
   : T extends any[]
   ? ReplaceByMapWithDepth<T[number], Prev[Depth]>[]
+  : T extends ReadonlyMap<unknown, unknown>
+  ? T
   : T extends object
   ? { [K in keyof T]: ReplaceByMapWithDepth<T[K], Prev[Depth]>; }
   : T;
