@@ -45,6 +45,8 @@ type ReplaceByMapWithDepth<T, Depth extends number = 24> =
   ? Set<ReplaceByMapWithDepth<V, Prev[Depth]>>
   : T extends { _map: [infer K, infer V] }
   ? Map<ReplaceByMapWithDepth<K, Prev[Depth]>, ReplaceByMapWithDepth<V, Prev[Depth]>>
+  : T extends { _map: [infer V] }
+  ? Map<ReplaceByMapWithDepth<V, Prev[Depth]>, ReplaceByMapWithDepth<V, Prev[Depth]>>
   : T extends u8 | u16 | u24 | u32 | i8 | i16 | i24 | i32 | f16 | f24 | f32 | f64
   ? number
   : T extends any[]
