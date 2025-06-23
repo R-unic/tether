@@ -68,12 +68,12 @@ let sendUnreliableMessage: UnreliableRemoteEvent<MessageEvent>;
 export class MessageEmitter<MessageData> extends Destroyable {
   public readonly middleware = new MiddlewareProvider<MessageData>;
 
-  private readonly clientCallbacks = new Map<keyof MessageData, Set<ClientMessageCallback>>;
-  private readonly clientFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
-  private readonly serverCallbacks = new Map<keyof MessageData, Set<ServerMessageCallback>>;
-  private readonly serverFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
   private readonly guards = new Map<keyof MessageData, Guard>;
-  private readonly serializers: Partial<Record<keyof MessageData, Serializer<MessageData[keyof MessageData]>>> = {};
+  private serializers: Partial<Record<keyof MessageData, Serializer<MessageData[keyof MessageData]>>> = {};
+  private clientCallbacks = new Map<keyof MessageData, Set<ClientMessageCallback>>;
+  private clientFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
+  private serverCallbacks = new Map<keyof MessageData, Set<ServerMessageCallback>>;
+  private serverFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
   private serverQueue: [keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
   private clientBroadcastQueue: [keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
   private clientQueue: [Player | Player[], keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
@@ -105,10 +105,13 @@ export class MessageEmitter<MessageData> extends Destroyable {
     private readonly options = defaultMesssageEmitterOptions
   ) {
     super();
-    this.janitor.Add(() => {
-      this.clientCallbacks.clear();
-      this.serverCallbacks.clear();
-      table.clear(this.serializers);
+    this.trash.add(() => {
+      this.clientCallbacks = new Map;
+      this.serverCallbacks = new Map;
+      this.clientFunctions = new Map;
+      this.clientCallbacks = new Map;
+      this.serializers = {};
+      setmetatable(this, undefined);
     });
   }
 
@@ -343,20 +346,20 @@ export class MessageEmitter<MessageData> extends Destroyable {
   private initialize(): this {
     setLuneContext("client");
     if (RunService.IsClient()) {
-      this.janitor.Add(sendMessage.OnClientEvent.Connect(
+      this.trash.add(sendMessage.OnClientEvent.Connect(
         (...serializedPacket) => this.onRemoteFire(false, serializedPacket))
       );
-      this.janitor.Add(sendUnreliableMessage.OnClientEvent.Connect(
+      this.trash.add(sendUnreliableMessage.OnClientEvent.Connect(
         (...serializedPacket) => this.onRemoteFire(false, serializedPacket))
       );
     }
 
     setLuneContext("server");
     if (RunService.IsServer()) {
-      this.janitor.Add(sendMessage.OnServerEvent.Connect(
+      this.trash.add(sendMessage.OnServerEvent.Connect(
         (player, ...serializedPacket) => this.onRemoteFire(true, serializedPacket as never, player))
       );
-      this.janitor.Add(sendUnreliableMessage.OnServerEvent.Connect(
+      this.trash.add(sendUnreliableMessage.OnServerEvent.Connect(
         (player, ...serializedPacket) => this.onRemoteFire(true, serializedPacket as never, player))
       );
     }
@@ -366,7 +369,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     if (!batchRemotes)
       return this;
 
-    this.janitor.Add(RunService.Heartbeat.Connect(dt => {
+    this.trash.add(RunService.Heartbeat.Connect(dt => {
       elapsed += dt;
       if (elapsed < batchRate) return;
 

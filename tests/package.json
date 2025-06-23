@@ -19,7 +19,7 @@
     "typescript": "=5.5.3"
   },
   "dependencies": {
-    "@rbxts/destroyable": "^1.0.1",
+    "@rbxts/destroyable": "^1.0.2",
     "@rbxts/flamework-meta-utils": "^1.0.6",
     "@rbxts/runit": "^1.4.2",
     "@rbxts/serio": "^1.0.18",
