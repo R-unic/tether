@@ -43,6 +43,8 @@ type ReplaceByMapWithDepth<T, Depth extends number = 24> =
   ? ReplaceByMapWithDepth<A, Prev[Depth]>
   : T extends { _set: [infer V] }
   ? Set<ReplaceByMapWithDepth<V, Prev[Depth]>>
+  : T extends { _set: infer T extends unknown[] }
+  ? Map<ReplaceByMapWithDepth<T[number], Prev[Depth]>, ReplaceByMapWithDepth<T[number], Prev[Depth]>>
   : T extends { _map: [infer K, infer V] }
   ? Map<ReplaceByMapWithDepth<K, Prev[Depth]>, ReplaceByMapWithDepth<V, Prev[Depth]>>
   : T extends { _map: [infer V] }
