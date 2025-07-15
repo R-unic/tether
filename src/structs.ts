@@ -51,6 +51,8 @@ type ReplaceByMapWithDepth<T, Depth extends number = 24> =
   ? Map<ReplaceByMapWithDepth<V, Prev[Depth]>, ReplaceByMapWithDepth<V, Prev[Depth]>>
   : T extends u8 | u16 | u24 | u32 | i8 | i16 | i24 | i32 | f16 | f24 | f32 | f64
   ? number
+  : T extends Color3
+  ? { R: number, G: number, B: number }
   : T extends any[]
   ? ReplaceByMapWithDepth<T[number], Prev[Depth]>[]
   : T extends ReadonlyMap<unknown, unknown>
