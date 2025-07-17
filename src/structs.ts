@@ -35,6 +35,8 @@ type ReplaceByMapWithDepth<T, Depth extends number = 24> =
   ? CFrame
   : T extends String
   ? string
+  : T extends buffer
+  ? buffer
   : T extends { _packed: [infer V] }
   ? ReplaceByMapWithDepth<V, Prev[Depth]>
   : T extends { _list: [infer V] }
