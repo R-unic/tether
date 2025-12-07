@@ -184,11 +184,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
       const functions = this.clientFunctions.get(returnMessage)!;
       let returnValue: MessageData[ReturnKind] | undefined;
-      functions.add(data => returnValue = data as never);
+      const responseCallback = (data: unknown) => returnValue = data as never;
+      functions.add(responseCallback);
       this.server.emit(message, data, unreliable);
 
       while (returnValue === undefined)
         RunService.Heartbeat.Wait();
+
+      // Clean up the callback after receiving the response
+      functions.delete(responseCallback);
 
       return returnValue;
     },
@@ -207,7 +211,13 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
       return this.server.on(message, (player, data) => {
         const returnValue = callback(player, data);
-        this.client.emit(player, returnMessage, returnValue);
+        // Defer the response emission to end of frame and swap context to avoid context check issues
+        // task.defer guarantees response is sent by end of current frame, ensuring predictable timing in production
+        task.defer(() => {
+          setLuneContext("server");
+          this.client.emit(player, returnMessage, returnValue);
+          setLuneContext("both");
+        });
       });
     }
   };
@@ -315,11 +325,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
       const functions = this.serverFunctions.get(returnMessage)!;
       let returnValue: MessageData[ReturnKind] | undefined;
-      functions.add(data => returnValue = data as never);
+      const responseCallback = (data: unknown) => returnValue = data as never;
+      functions.add(responseCallback);
       this.client.emit(player, message, data, unreliable);
 
       while (returnValue === undefined)
         RunService.Heartbeat.Wait();
+
+      // Clean up the callback after receiving the response
+      functions.delete(responseCallback);
 
       return returnValue;
     },
@@ -338,7 +352,13 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
       return this.client.on(message, data => {
         const returnValue = callback(data);
-        this.server.emit(returnMessage, returnValue);
+        // Defer the response emission to end of frame and swap context to avoid context check issues
+        // task.defer guarantees response is sent by end of current frame, ensuring predictable timing in production
+        task.defer(() => {
+          setLuneContext("client");
+          this.server.emit(returnMessage, returnValue);
+          setLuneContext("both");
+        });
       });
     },
   };

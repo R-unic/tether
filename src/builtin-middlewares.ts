@@ -81,18 +81,18 @@ export namespace BuiltinMiddlewares {
         ? " " + repr((schema as unknown[])[0], { pretty: true }).split("\n").join("\n ")
         : "unknown";
 
-      const text = [
+      const text: string[] = [
         "\n",
         horizontalLine, "\n",
         "Packet sent to ", (RunService.IsServer() ? "client" : "server"), "!\n",
-        " - Message: ", message, "\n",
+        " - Message: ", tostring(message), "\n",
         " - Data: ", repr(data, { pretty: true }), "\n",
         " - Raw data:\n",
         "   - Buffer: ", bufferToString(buf), "\n",
         "   - Blobs: ", repr(blobs, { pretty: false, robloxClassName: true }), "\n",
-        " - Packet size: ", bufferSize + blobsSize, " bytes\n",
-        "   - Buffer: ", bufferSize, " bytes\n",
-        "   - Blobs: ", blobsSize, " bytes\n",
+        " - Packet size: ", tostring(bufferSize + blobsSize), " bytes\n",
+        "   - Buffer: ", tostring(bufferSize), " bytes\n",
+        "   - Blobs: ", tostring(blobsSize), " bytes\n",
         " - Schema: ", schemaString, "\n",
         horizontalLine,
         "\n"
