@@ -211,7 +211,13 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
       return this.server.on(message, (player, data) => {
         const returnValue = callback(player, data);
-        this.client.emit(player, returnMessage, returnValue);
+        // Defer the response emission to end of frame and swap context to avoid context check issues
+        // task.defer guarantees response is sent by end of current frame, ensuring predictable timing in production
+        task.defer(() => {
+          setLuneContext("server");
+          this.client.emit(player, returnMessage, returnValue);
+          setLuneContext("both");
+        });
       });
     }
   };
@@ -346,7 +352,13 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
       return this.client.on(message, data => {
         const returnValue = callback(data);
-        this.server.emit(returnMessage, returnValue);
+        // Defer the response emission to end of frame and swap context to avoid context check issues
+        // task.defer guarantees response is sent by end of current frame, ensuring predictable timing in production
+        task.defer(() => {
+          setLuneContext("client");
+          this.server.emit(returnMessage, returnValue);
+          setLuneContext("both");
+        });
       });
     },
   };
