@@ -184,11 +184,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
       const functions = this.clientFunctions.get(returnMessage)!;
       let returnValue: MessageData[ReturnKind] | undefined;
-      functions.add(data => returnValue = data as never);
+      const responseCallback = (data: unknown) => returnValue = data as never;
+      functions.add(responseCallback);
       this.server.emit(message, data, unreliable);
 
       while (returnValue === undefined)
         RunService.Heartbeat.Wait();
+
+      // Clean up the callback after receiving the response
+      functions.delete(responseCallback);
 
       return returnValue;
     },
@@ -315,11 +319,15 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
       const functions = this.serverFunctions.get(returnMessage)!;
       let returnValue: MessageData[ReturnKind] | undefined;
-      functions.add(data => returnValue = data as never);
+      const responseCallback = (data: unknown) => returnValue = data as never;
+      functions.add(responseCallback);
       this.client.emit(player, message, data, unreliable);
 
       while (returnValue === undefined)
         RunService.Heartbeat.Wait();
+
+      // Clean up the callback after receiving the response
+      functions.delete(responseCallback);
 
       return returnValue;
     },
