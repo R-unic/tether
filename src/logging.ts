@@ -8,7 +8,9 @@ export const enum Error {
   NoClientToClient = errorTag + "Cannot emit message from client to client",
   NoClientToAllClients = errorTag + "Cannot emit message from client to all clients",
   NoServerToServerFunction = errorTag + "Cannot invoke function from server to server",
-  NoClientToClientFunction = errorTag + "Cannot invoke function from client to client"
+  NoClientToClientFunction = errorTag + "Cannot invoke function from client to client",
+  ServerFunctionTimeout = errorTag + "Server function timed out (no response)",
+  ClientFunctionTimeout = errorTag + "Client function timed out (no response)"
 }
 
 export const enum Warning {

@@ -1,4 +1,5 @@
 import { Assert, Fact, Order } from "@rbxts/runit";
+import { decodeMessage } from "@rbxts/tether/utility";
 import type { BaseMessage } from "@rbxts/tether/structs";
 
 import { Message, messaging } from "./utility";
@@ -6,8 +7,10 @@ import { Message, messaging } from "./utility";
 declare function setLuneContext(ctx: "server" | "client"): void;
 
 function waitForCollected(collection: unknown[]): void {
-  while (collection.size() === 0)
-    task.wait();
+  let i = 0;
+  while (collection.size() === 0 && i < 1) {
+    i += task.wait();
+  }
 }
 
 function getCollectedMessage<T extends defined>(collection: T[], predicate: (data: T) => boolean): T {

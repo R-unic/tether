@@ -24,6 +24,7 @@ import type {
 import { ServerEmitter } from "./server-emitter";
 import { ClientEmitter } from "./client-emitter";
 import { Warning } from "../logging";
+import { readMessage, writeMessage } from "../utility";
 
 declare let setLuneContext: (ctx: "server" | "client" | "both") => void;
 setLuneContext ??= () => { };
@@ -346,7 +347,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
       if (buffer.len(packet.messageBuf) > 1)
         return warn(Warning.MessageBufferTooLong); // TODO: disable in production (so an exploiter wont know why the message was dropped)
 
-      const message = buffer.readu8(packet.messageBuf, 0) as never;
+      const message = readMessage(packet) as never;
       this.executeEventCallbacks(isServer, message, packet, player);
       this.executeFunctions(isServer, message, packet);
     }
@@ -390,7 +391,8 @@ export class MessageEmitter<MessageData> extends Destroyable {
   private getPacket<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind]): SerializedPacket {
     const serializer = this.getSerializer(message);
     const messageBuf = buffer.create(1);
-    buffer.writeu8(messageBuf, 0, message);
+    writeMessage(messageBuf, message);
+
     if (serializer === undefined)
       return {
         messageBuf,
@@ -398,7 +400,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
         blobs: []
       };
 
-    return { messageBuf: messageBuf, ...serializer.serialize(data) };
+    return { messageBuf, ...serializer.serialize(data) };
   }
 
   /** @metadata macro */

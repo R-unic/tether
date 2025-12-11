@@ -126,12 +126,18 @@ export class ClientEmitter<MessageData> extends ContextualEmitter<MessageData> {
     functions.add(responseCallback);
     this.emit(player, message, data, unreliable);
 
-    // awful
-    while (returnValue === undefined)
-      RunService.Heartbeat.Wait();
+    return new Promise((resolve, reject) => {
+      // awful
+      let frames = 0;
+      while (returnValue === undefined && frames++ < 400)
+        RunService.Heartbeat.Wait();
 
-    // clean up the callback after receiving the response
-    functions.delete(responseCallback);
-    return returnValue as never;
+      if (frames === 400)
+        return reject(Error.ClientFunctionTimeout);
+
+      // clean up the callback after receiving the response
+      functions.delete(responseCallback);
+      resolve(returnValue as never);
+    });
   }
 }

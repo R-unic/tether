@@ -23,7 +23,7 @@ class InvokeTest {
 
     setLuneContext("client");
     messaging.server.emit(InvokeMessage.ClientToServer, 42);
-    
+
     // Give the message time to propagate
     for (let i = 0; i < 10; i++) {
       task.wait(0.01);
@@ -40,9 +40,9 @@ class InvokeTest {
     // This test verifies that message keys are correctly encoded and decoded
     // Use a different message type to avoid interfering with other tests
     setLuneContext("server");
-    
+
     let receivedKey: number | undefined;
-    messaging.server.on(InvokeMessage.HighKey, (player, data) => {
+    messaging.server.on(InvokeMessage.HighKey, () => {
       receivedKey = InvokeMessage.HighKey;
     });
 
