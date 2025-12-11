@@ -16,7 +16,7 @@
     "rbxts-transformer-flamework": "^1.3.2",
     "roblox-ts": "^3.0.0",
     "ts-toolbelt": "^9.6.0",
-    "typescript": "^5"
+    "typescript": "^5.5.3"
   },
   "dependencies": {
     "@rbxts/destroyable": "^1.0.9",

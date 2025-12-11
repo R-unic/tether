@@ -1,4 +1,4 @@
-export { MessageEmitter } from "./message-emitter";
+export { MessageEmitter } from "./emitters/message-emitter";
 export { BuiltinMiddlewares } from "./builtin-middlewares";
 export {
   DropRequest,

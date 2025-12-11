@@ -64,7 +64,7 @@ messaging.server.emit(Message.Test, {
 });
 ```
 
-## Simulated Remote Functions
+## Function Messages
 
 Tether does not directly use RemoteFunctions since it's based on the MessageEmitter structure. However I have created a small framework to simulate remote functions, as shown below.
 

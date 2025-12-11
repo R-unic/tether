@@ -6,10 +6,11 @@ import type {
 } from "@rbxts/serio";
 
 export type MessageCallback<T = unknown> = ServerMessageCallback<T> | ClientMessageCallback<T>;
+export type FunctionMessageCallback<T = unknown, R = unknown> = ServerFunctionMessageCallback<T, R> | ClientFunctionMessageCallback<T, R>;
 export type ClientMessageCallback<T = unknown> = (data: T) => void;
-export type ClientMessageFunctionCallback<T = unknown, R = unknown> = (data: T) => R;
+export type ClientFunctionMessageCallback<T = unknown, R = unknown> = (data: T) => R;
 export type ServerMessageCallback<T = unknown> = (player: Player, data: T) => void;
-export type ServerMessageFunctionCallback<T = unknown, R = unknown> = (player: Player, data: T) => R;
+export type ServerFunctionMessageCallback<T = unknown, R = unknown> = (player: Player, data: T) => R;
 export type BaseMessage = number;
 
 export interface PacketInfo {

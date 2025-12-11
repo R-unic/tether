@@ -13,18 +13,18 @@ class InvokeCallbackFixTest {
   @Fact
   public async testServerSetCallbackWithResponseWorksEndToEnd(): Promise<void> {
     print("\n=== INVOKE CALLBACK FIX TEST ===\n");
-    
+
     setLuneContext("server");
     print("[SERVER] Setting up callback for ClientToServer request");
-    
+
     let callbackExecuted = false;
     let requestData: number | undefined;
     let responseWasSent = false;
-    
+
     messaging.server.setCallback(
       InvokeMessage.ClientToServer,
       InvokeMessage.ServerResponse,
-      (player, data) => {
+      (_, data) => {
         print(`[SERVER CALLBACK] Received request: ${data}`);
         callbackExecuted = true;
         requestData = data;
@@ -35,7 +35,7 @@ class InvokeCallbackFixTest {
 
     setLuneContext("client");
     print("[CLIENT] Emitting request to server");
-    messaging.server.emit(InvokeMessage.ClientToServer, 25);
+    messaging.server.invoke(InvokeMessage.ClientToServer, InvokeMessage.ServerResponse, 25);
 
     print("[CLIENT] Waiting for server callback");
     for (let i = 0; i < 50; i++) {
@@ -54,7 +54,7 @@ class InvokeCallbackFixTest {
     Assert.equal(true, callbackExecuted);
     Assert.equal(25, requestData);
     Assert.equal(true, responseWasSent);
-    
+
     setLuneContext("server");
     print("\n=== END INVOKE CALLBACK FIX TEST ===\n");
   }
@@ -62,17 +62,17 @@ class InvokeCallbackFixTest {
   @Fact
   public async testClientSetCallbackWorksEndToEnd(): Promise<void> {
     print("\n=== CLIENT SET CALLBACK TEST ===\n");
-    
+
     setLuneContext("client");
     print("[CLIENT] Setting up callback for ServerToClient request");
-    
+
     let clientCallbackExecuted = false;
     let clientRequestData: number | undefined;
-    
+
     messaging.client.setCallback(
       InvokeMessage.ServerToClient,
       InvokeMessage.ClientResponse,
-      (data) => {
+      data => {
         print(`[CLIENT CALLBACK] Received request: ${data}`);
         clientCallbackExecuted = true;
         clientRequestData = data;
@@ -83,7 +83,7 @@ class InvokeCallbackFixTest {
     setLuneContext("server");
     print("[SERVER] Emitting request to client");
     // Note: we need a localPlayer instance but for now just test registration
-    messaging.client.emitAll(InvokeMessage.ServerToClient, 50);
+    messaging.client.invoke(InvokeMessage.ServerToClient, InvokeMessage.ClientResponse, localPlayer, 50);
 
     print("[SERVER] Waiting for client callback");
     for (let i = 0; i < 50; i++) {
@@ -100,7 +100,7 @@ class InvokeCallbackFixTest {
 
     Assert.equal(true, clientCallbackExecuted);
     Assert.equal(50, clientRequestData);
-    
+
     setLuneContext("server");
     print("\n=== END CLIENT SET CALLBACK TEST ===\n");
   }
