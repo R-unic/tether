@@ -1,6 +1,6 @@
 {
   "name": "@rbxts/tether",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "main": "out/init.luau",
   "scripts": {
     "setup-rokit": "rokit trust lune-org/lune && rokit trust rojo-rbx/rojo && rokit install",
