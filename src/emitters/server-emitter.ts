@@ -4,7 +4,8 @@ import { Error } from "../logging";
 import { ContextualEmitter } from "./contextual-emitter";
 import type { BaseMessage, ServerMessageCallback, ServerFunctionMessageCallback } from "../structs";
 
-declare function setLuneContext(ctx: "server" | "client" | "both"): void;
+declare let setLuneContext: (ctx: "server" | "client" | "both") => void;
+setLuneContext ??= () => { };
 
 export class ServerEmitter<MessageData> extends ContextualEmitter<MessageData> {
   public readonly context = "server";
