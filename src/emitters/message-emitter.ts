@@ -1,5 +1,6 @@
 import { Modding } from "@flamework/core";
-import { Players, ReplicatedStorage, RunService } from "@rbxts/services";
+import { Players } from "@rbxts/services";
+import { Trash } from "@rbxts/trash";
 import type { Serializer, SerializerMetadata } from "@rbxts/serio";
 import Destroyable from "@rbxts/destroyable";
 import Object from "@rbxts/object-utils";
@@ -15,14 +16,13 @@ import type {
   BaseMessage,
   Guard,
   MessageEmitterMetadata,
-  MessageMetadata,
-  PacketInfo,
-  MessageEvent
+  MessageMetadata
 } from "../structs";
 import { ServerEmitter } from "./server-emitter";
 import { ClientEmitter } from "./client-emitter";
 import { Warning } from "../logging";
-import { createMessageBuffer, getAllPacketsWhich, isReliable, isUnreliable, readMessage, shouldBatch, writeMessage } from "../utility";
+import { createMessageBuffer, readMessage, shouldBatch } from "../utility";
+import { Relayer } from "../relayer";
 
 declare let setLuneContext: (ctx: "server" | "client" | "both") => void;
 setLuneContext ??= () => { };
@@ -43,35 +43,13 @@ export interface MessageEmitterOptions<MessageData> {
   readonly doNotBatch: Set<keyof MessageData>;
 }
 
-let sendMessage: RemoteEvent<MessageEvent>;
-{
-  const name = "sendMessage";
-  const existing = ReplicatedStorage.FindFirstChild(name);
-  const remote = (existing ?? new Instance("RemoteEvent", ReplicatedStorage)) as RemoteEvent<MessageEvent>;
-  if (existing === undefined)
-    remote.Name = name;
-
-  sendMessage = remote;
-}
-let sendUnreliableMessage: UnreliableRemoteEvent<MessageEvent>;
-{
-  const name = "unreliableMessage";
-  const existing = ReplicatedStorage.FindFirstChild(name);
-  const remote = (existing ?? new Instance("UnreliableRemoteEvent", ReplicatedStorage)) as UnreliableRemoteEvent<MessageEvent>;
-  if (existing === undefined)
-    remote.Name = name;
-
-  sendUnreliableMessage = remote;
-}
-
-type ServerQueuedMessageData<MessageData> = [keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean];
-type ClientQueuedMessageData<MessageData> = [Player | Player[], ...ServerQueuedMessageData<MessageData>];
-type QueuedMessageData<MessageData> = ClientQueuedMessageData<MessageData> | ServerQueuedMessageData<MessageData>;
-
 export class MessageEmitter<MessageData> extends Destroyable {
   public readonly server = new ServerEmitter(this);
   public readonly client = new ClientEmitter(this);
   public readonly middleware = new MiddlewareProvider<MessageData>;
+
+  /** @hidden */ declare public readonly trash: Trash;
+  /** @hidden */ public readonly relayer = new Relayer(this);
   /** @hidden */ public clientCallbacks = new Map<keyof MessageData, Set<ClientMessageCallback>>;
   /** @hidden */ public clientFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
   /** @hidden */ public serverCallbacks = new Map<keyof MessageData, Set<ServerMessageCallback>>;
@@ -79,9 +57,6 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   private readonly guards = new Map<keyof MessageData, Guard>;
   private serializers: Partial<Record<keyof MessageData, Serializer<MessageData[keyof MessageData]>>> = {};
-  private serverQueue: ServerQueuedMessageData<MessageData>[] = [];
-  private clientBroadcastQueue: ServerQueuedMessageData<MessageData>[] = [];
-  private clientQueue: ClientQueuedMessageData<MessageData>[] = [];
 
   /** @metadata macro */
   public static create<MessageData>(
@@ -91,7 +66,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const emitter = new MessageEmitter<MessageData>(Object.assign({}, defaultMesssageEmitterOptions, options));
     if (meta === undefined) {
       warn(Warning.MetaGenerationFailed);
-      return emitter.initialize();
+      return emitter;
     }
 
     // https://discord.com/channels/476080952636997633/506983834877689856/1363938149486821577
@@ -104,11 +79,11 @@ export class MessageEmitter<MessageData> extends Destroyable {
       emitter.addSerializer(numberKind, serializerMetadata as never);
     }
 
-    return emitter.initialize();
+    return emitter;
   }
 
   private constructor(
-    private readonly options: MessageEmitterOptions<MessageData> = defaultMesssageEmitterOptions
+    public readonly options: MessageEmitterOptions<MessageData> = defaultMesssageEmitterOptions
   ) {
     super();
     this.trash.add(() => {
@@ -119,23 +94,6 @@ export class MessageEmitter<MessageData> extends Destroyable {
       this.serializers = {};
       setmetatable(this, undefined);
     });
-  }
-
-  /** @hidden */
-  public queueMessage<K extends keyof MessageData>(
-    context: "client" | "server" | true,
-    message: K & BaseMessage,
-    data: QueuedMessageData<MessageData>
-  ): void {
-    const queue = context === "client"
-      ? this.clientQueue
-      : context === true
-        ? this.clientBroadcastQueue
-        : this.serverQueue;
-
-    queue.push(data as never);
-    if (!shouldBatch(message, this.options))
-      this.relayAll();
   }
 
   /** @hidden */
@@ -151,7 +109,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const ctx: MiddlewareContext<MessageData[Kind], Kind & BaseMessage> = {
       message,
       data: data!,
-      getRawData: () => this.getPacket(message, data)
+      getRawData: () => this.serializePacket(message, data)
     };
 
     for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>()) {
@@ -193,7 +151,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const ctx: MiddlewareContext<MessageData[Kind], Kind & BaseMessage> = {
       message,
       data: data!,
-      getRawData: () => this.getPacket(message, data)
+      getRawData: () => this.serializePacket(message, data)
     };
 
     for (const globalMiddleware of this.middleware.getServerGlobal<MessageData[Kind]>()) {
@@ -224,119 +182,30 @@ export class MessageEmitter<MessageData> extends Destroyable {
     return [false, ctx.data];
   }
 
-  /** Set up emitter connections */
-  private initialize(): this {
-    setLuneContext("client");
-    if (RunService.IsClient()) {
-      this.trash.add(sendMessage.OnClientEvent.Connect(
-        (...serializedPacket) => this.onRemoteFire(false, serializedPacket))
-      );
-      this.trash.add(sendUnreliableMessage.OnClientEvent.Connect(
-        (...serializedPacket) => this.onRemoteFire(false, serializedPacket))
-      );
+  /** @hidden */
+  public onRemoteFire(isServer: boolean, serializedPackets: SerializedPacket[], player?: Player): void {
+    for (const packet of serializedPackets) {
+      if (buffer.len(packet.messageBuf) > 1)
+        return warn(Warning.MessageBufferTooLong); // TODO: disable in production (so an exploiter wont know why the message was dropped)
+
+      const message = readMessage(packet) as never;
+      this.executeEventCallbacks(isServer, message, packet, player);
+      this.executeFunctions(isServer, message, packet);
     }
-
-    setLuneContext("server");
-    if (RunService.IsServer()) {
-      this.trash.add(sendMessage.OnServerEvent.Connect(
-        (player, ...serializedPacket) => this.onRemoteFire(true, serializedPacket as never, player))
-      );
-      this.trash.add(sendUnreliableMessage.OnServerEvent.Connect(
-        (player, ...serializedPacket) => this.onRemoteFire(true, serializedPacket as never, player))
-      );
-    }
-
-    let elapsed = 0;
-    const { batchRemotes, batchRate } = this.options;
-    if (!batchRemotes)
-      return this;
-
-    this.trash.add(RunService.Heartbeat.Connect(dt => {
-      elapsed += dt;
-      if (elapsed < batchRate) return;
-
-      elapsed -= batchRate;
-      this.relayAll();
-    }));
-
-    return this;
   }
 
-  private relay(send: MessageEvent, sendUnreliable: MessageEvent, queue: QueuedMessageData<MessageData>[], clearQueue: () => void): void {
-    if (queue.isEmpty()) return;
+  /** @hidden */
+  public serializePacket<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind]): SerializedPacket {
+    const serializer = this.getSerializer(message);
+    const messageBuf = createMessageBuffer(message);
+    if (serializer === undefined)
+      return {
+        messageBuf,
+        buf: buffer.create(0),
+        blobs: []
+      };
 
-    const packetInfos = queue.map<PacketInfo>(messageData => {
-      let message: keyof MessageData & BaseMessage,
-        data: MessageData[keyof MessageData],
-        unreliable: boolean;
-
-      if (typeIs(messageData[0], "Instance"))
-        [, message, data, unreliable] = messageData as ClientQueuedMessageData<MessageData>;
-      else
-        [message, data, unreliable] = messageData as ServerQueuedMessageData<MessageData>;
-
-      const packet = this.getPacket(message, data);
-      return { packet, unreliable };
-    });
-
-    const unreliablePackets = getAllPacketsWhich(packetInfos, isUnreliable);
-    const packets = getAllPacketsWhich(packetInfos, isReliable);
-    if (!unreliablePackets.isEmpty())
-      sendUnreliable(...unreliablePackets);
-    if (!packets.isEmpty())
-      send(...packets);
-
-    clearQueue();
-  }
-
-  /** Send all queued data across the network simultaneously */
-  private relayAll(): void {
-    if (RunService.IsClient())
-      return this.relay(
-        (...packets) => sendMessage.FireServer(...packets),
-        (...packets) => sendUnreliableMessage.FireServer(...packets),
-        this.serverQueue,
-        () => this.serverQueue = []
-      );
-
-    this.relay(
-      (...packets) => sendMessage.FireAllClients(...packets),
-      (...packets) => sendUnreliableMessage.FireAllClients(...packets),
-      this.clientBroadcastQueue,
-      () => this.clientBroadcastQueue = []
-    );
-
-    const playerPacketInfos = new Map<Player, PacketInfo[]>;
-    const addClientPacket = (player: Player, packetInfo: PacketInfo): void => {
-      const packetInfos = playerPacketInfos.get(player) ?? [];
-      packetInfos.push(packetInfo);
-      playerPacketInfos.set(player, packetInfos);
-    };
-
-    for (const [player, message, data, unreliable] of this.clientQueue) {
-      const packet = this.getPacket(message, data);
-      const info = { packet, unreliable };
-      if (typeIs(player, "Instance"))
-        addClientPacket(player, info);
-      else
-        for (const p of player)
-          addClientPacket(p, info);
-    }
-
-    if (!this.clientQueue.isEmpty()) {
-      for (const [player, packetInfos] of playerPacketInfos) {
-        if (packetInfos.isEmpty()) continue;
-
-        const unreliablePackets = getAllPacketsWhich(packetInfos, isUnreliable);
-        const packets = getAllPacketsWhich(packetInfos, isReliable);
-        if (!unreliablePackets.isEmpty())
-          sendUnreliableMessage.FireClient(player, ...unreliablePackets);
-        if (!packets.isEmpty())
-          sendMessage.FireClient(player, ...packets);
-      }
-
-      this.clientQueue = [];
-    }
+    return { messageBuf, ...serializer.serialize(data) };
   }
 
   private validateData(message: keyof MessageData & BaseMessage, data: unknown, requestDropReason = "Invalid data"): boolean {
@@ -348,17 +217,6 @@ export class MessageEmitter<MessageData> extends Destroyable {
     }
 
     return guardPassed
-  }
-
-  private onRemoteFire(isServer: boolean, serializedPackets: SerializedPacket[], player?: Player): void {
-    for (const packet of serializedPackets) {
-      if (buffer.len(packet.messageBuf) > 1)
-        return warn(Warning.MessageBufferTooLong); // TODO: disable in production (so an exploiter wont know why the message was dropped)
-
-      const message = readMessage(packet) as never;
-      this.executeEventCallbacks(isServer, message, packet, player);
-      this.executeFunctions(isServer, message, packet);
-    }
   }
 
   private executeFunctions(isServer: boolean, message: keyof MessageData & BaseMessage, serializedPacket: SerializedPacket): void {
@@ -390,19 +248,6 @@ export class MessageEmitter<MessageData> extends Destroyable {
     this.validateData(message, packet);
 
     return packet;
-  }
-
-  private getPacket<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind]): SerializedPacket {
-    const serializer = this.getSerializer(message);
-    const messageBuf = createMessageBuffer(message);
-    if (serializer === undefined)
-      return {
-        messageBuf,
-        buf: buffer.create(0),
-        blobs: []
-      };
-
-    return { messageBuf, ...serializer.serialize(data) };
   }
 
   /** @metadata macro */

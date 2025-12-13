@@ -36,7 +36,7 @@ export class ServerEmitter<MessageData> extends ContextualEmitter<MessageData> {
       const [dropRequest, newData] = this.master.runServerMiddlewares(message, data);
       if (dropRequest) return;
 
-      this.master.queueMessage(this.context, message, [message, newData, unreliable]);
+      this.master.relayer.queueMessage(this.context, message, [message, newData, unreliable]);
     });
   }
 

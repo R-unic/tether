@@ -37,7 +37,7 @@ export class ClientEmitter<MessageData> extends ContextualEmitter<MessageData> {
       const [dropRequest, newData] = this.master.runClientMiddlewares(message, data, player);
       if (dropRequest) return;
 
-      this.master.queueMessage(this.context, message, [player, message, newData, unreliable]);
+      this.master.relayer.queueMessage(this.context, message, [player, message, newData, unreliable]);
     });
   }
 
@@ -69,7 +69,7 @@ export class ClientEmitter<MessageData> extends ContextualEmitter<MessageData> {
       const [dropRequest, newData] = this.master.runClientMiddlewares(message, data);
       if (dropRequest) return;
 
-      this.master.queueMessage(true, message, [message, newData, unreliable]);
+      this.master.relayer.queueMessage(true, message, [message, newData, unreliable]);
     });
   }
 
