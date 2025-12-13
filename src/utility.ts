@@ -1,4 +1,5 @@
-import type { BaseMessage, SerializedPacket } from "./structs";
+import type { BaseMessage, PacketInfo, SerializedPacket } from "./structs";
+import type { MessageEmitterOptions } from "./emitters/message-emitter";
 
 const COEFF = 0xFA
 
@@ -33,4 +34,30 @@ export function writeMessage(buf: buffer, message: BaseMessage): void {
 export function readMessage(packet: SerializedPacket | buffer): BaseMessage {
   const buf = typeIs(packet, "buffer") ? packet : packet.messageBuf;
   return decodeMessage(buffer.readu8(buf, 0));
+}
+
+export function createMessageBuffer(message: BaseMessage): buffer {
+  const messageBuf = buffer.create(1);
+  writeMessage(messageBuf, message);
+
+  return messageBuf;
+}
+
+export function getAllPacketsWhich(infos: PacketInfo[], predicate: (info: PacketInfo) => boolean): SerializedPacket[] {
+  return infos.filter(predicate).map(getPacket);
+}
+
+export function isUnreliable(info: PacketInfo): boolean {
+  return info.unreliable;
+}
+export function isReliable(info: PacketInfo): boolean {
+  return !info.unreliable;
+}
+
+export function getPacket(info: PacketInfo): SerializedPacket {
+  return info.packet;
+}
+
+export function shouldBatch<MessageData>(message: keyof MessageData & BaseMessage, options: MessageEmitterOptions<MessageData>): boolean {
+  return options.batchRemotes && !options.doNotBatch.has(message);
 }

@@ -16,15 +16,13 @@ import type {
   Guard,
   MessageEmitterMetadata,
   MessageMetadata,
-  ClientFunctionMessageCallback,
-  ServerFunctionMessageCallback,
   PacketInfo,
   MessageEvent
 } from "../structs";
 import { ServerEmitter } from "./server-emitter";
 import { ClientEmitter } from "./client-emitter";
 import { Warning } from "../logging";
-import { readMessage, writeMessage } from "../utility";
+import { createMessageBuffer, getAllPacketsWhich, isReliable, isUnreliable, readMessage, shouldBatch, writeMessage } from "../utility";
 
 declare let setLuneContext: (ctx: "server" | "client" | "both") => void;
 setLuneContext ??= () => { };
@@ -39,7 +37,7 @@ const defaultMesssageEmitterOptions: MessageEmitterOptions<unknown> = {
   doNotBatch: new Set
 };
 
-interface MessageEmitterOptions<MessageData> {
+export interface MessageEmitterOptions<MessageData> {
   readonly batchRemotes: boolean;
   readonly batchRate: number;
   readonly doNotBatch: Set<keyof MessageData>;
@@ -66,6 +64,10 @@ let sendUnreliableMessage: UnreliableRemoteEvent<MessageEvent>;
   sendUnreliableMessage = remote;
 }
 
+type ServerQueuedMessageData<MessageData> = [keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean];
+type ClientQueuedMessageData<MessageData> = [Player | Player[], ...ServerQueuedMessageData<MessageData>];
+type QueuedMessageData<MessageData> = ClientQueuedMessageData<MessageData> | ServerQueuedMessageData<MessageData>;
+
 export class MessageEmitter<MessageData> extends Destroyable {
   public readonly server = new ServerEmitter(this);
   public readonly client = new ClientEmitter(this);
@@ -77,9 +79,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   private readonly guards = new Map<keyof MessageData, Guard>;
   private serializers: Partial<Record<keyof MessageData, Serializer<MessageData[keyof MessageData]>>> = {};
-  private serverQueue: [keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
-  private clientBroadcastQueue: [keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
-  private clientQueue: [Player | Player[], keyof MessageData & BaseMessage, MessageData[keyof MessageData], boolean][] = [];
+  private serverQueue: ServerQueuedMessageData<MessageData>[] = [];
+  private clientBroadcastQueue: ServerQueuedMessageData<MessageData>[] = [];
+  private clientQueue: ClientQueuedMessageData<MessageData>[] = [];
 
   /** @metadata macro */
   public static create<MessageData>(
@@ -123,7 +125,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
   public queueMessage<K extends keyof MessageData>(
     context: "client" | "server" | true,
     message: K & BaseMessage,
-    data: (MessageEmitter<MessageData>["clientQueue"] | MessageEmitter<MessageData>["serverQueue"])[number]
+    data: QueuedMessageData<MessageData>
   ): void {
     const queue = context === "client"
       ? this.clientQueue
@@ -132,8 +134,8 @@ export class MessageEmitter<MessageData> extends Destroyable {
         : this.serverQueue;
 
     queue.push(data as never);
-    if (!this.shouldBatch(message))
-      this.relay();
+    if (!shouldBatch(message, this.options))
+      this.relayAll();
   }
 
   /** @hidden */
@@ -254,39 +256,61 @@ export class MessageEmitter<MessageData> extends Destroyable {
       if (elapsed < batchRate) return;
 
       elapsed -= batchRate;
-      this.relay();
+      this.relayAll();
     }));
 
     return this;
   }
 
+  private relay(send: MessageEvent, sendUnreliable: MessageEvent, queue: QueuedMessageData<MessageData>[], clearQueue: () => void): void {
+    if (queue.isEmpty()) return;
+
+    const packetInfos = queue.map<PacketInfo>(messageData => {
+      let message: keyof MessageData & BaseMessage,
+        data: MessageData[keyof MessageData],
+        unreliable: boolean;
+
+      if (typeIs(messageData[0], "Instance"))
+        [, message, data, unreliable] = messageData as ClientQueuedMessageData<MessageData>;
+      else
+        [message, data, unreliable] = messageData as ServerQueuedMessageData<MessageData>;
+
+      const packet = this.getPacket(message, data);
+      return { packet, unreliable };
+    });
+
+    const unreliablePackets = getAllPacketsWhich(packetInfos, isUnreliable);
+    const packets = getAllPacketsWhich(packetInfos, isReliable);
+    if (!unreliablePackets.isEmpty())
+      sendUnreliable(...unreliablePackets);
+    if (!packets.isEmpty())
+      send(...packets);
+
+    clearQueue();
+  }
+
   /** Send all queued data across the network simultaneously */
-  private relay(): void {
-    const getPacket = (info: PacketInfo): SerializedPacket => info.packet;
-    if (RunService.IsClient()) {
-      if (this.serverQueue.isEmpty()) return;
+  private relayAll(): void {
+    if (RunService.IsClient())
+      return this.relay(
+        (...packets) => sendMessage.FireServer(...packets),
+        (...packets) => sendUnreliableMessage.FireServer(...packets),
+        this.serverQueue,
+        () => this.serverQueue = []
+      );
 
-      const serverPacketInfos = this.serverQueue.map<PacketInfo>(([message, data, unreliable]) => {
-        const packet = this.getPacket(message, data);
-        return { packet, unreliable };
-      });
+    this.relay(
+      (...packets) => sendMessage.FireAllClients(...packets),
+      (...packets) => sendUnreliableMessage.FireAllClients(...packets),
+      this.clientBroadcastQueue,
+      () => this.clientBroadcastQueue = []
+    );
 
-      const unreliableServerPackets = serverPacketInfos.filter(info => info.unreliable).map(getPacket);
-      const serverPackets = serverPacketInfos.filter(info => !info.unreliable).map(getPacket);
-      if (!unreliableServerPackets.isEmpty())
-        sendUnreliableMessage.FireServer(...unreliableServerPackets);
-      if (!serverPackets.isEmpty())
-        sendMessage.FireServer(...serverPackets);
-
-      this.serverQueue = [];
-      return;
-    }
-
-    const clientPackets = new Map<Player, PacketInfo[]>;
+    const playerPacketInfos = new Map<Player, PacketInfo[]>;
     const addClientPacket = (player: Player, packetInfo: PacketInfo): void => {
-      const packetList = clientPackets.get(player) ?? [];
-      packetList.push(packetInfo);
-      clientPackets.set(player, packetList);
+      const packetInfos = playerPacketInfos.get(player) ?? [];
+      packetInfos.push(packetInfo);
+      playerPacketInfos.set(player, packetInfos);
     };
 
     for (const [player, message, data, unreliable] of this.clientQueue) {
@@ -299,28 +323,12 @@ export class MessageEmitter<MessageData> extends Destroyable {
           addClientPacket(p, info);
     }
 
-    if (!this.clientBroadcastQueue.isEmpty()) {
-      const clientBroadcastPackets = this.clientBroadcastQueue.map<PacketInfo>(([message, data, unreliable]) => {
-        const packet = this.getPacket(message, data);
-        return { packet, unreliable };
-      });
-
-      const unreliableBroadcastPackets = clientBroadcastPackets.filter(info => info.unreliable).map(getPacket);
-      const broadcastPackets = clientBroadcastPackets.filter(info => !info.unreliable).map(getPacket);
-      if (!unreliableBroadcastPackets.isEmpty())
-        sendUnreliableMessage.FireAllClients(...unreliableBroadcastPackets);
-      if (!broadcastPackets.isEmpty())
-        sendMessage.FireAllClients(...broadcastPackets);
-
-      this.clientBroadcastQueue = [];
-    }
-
     if (!this.clientQueue.isEmpty()) {
-      for (const [player, packetInfo] of clientPackets) {
-        if (packetInfo.isEmpty()) continue;
-        if (packetInfo.isEmpty()) continue;
-        const unreliablePackets = packetInfo.filter(info => info.unreliable).map(getPacket);
-        const packets = packetInfo.filter(info => !info.unreliable).map(getPacket);
+      for (const [player, packetInfos] of playerPacketInfos) {
+        if (packetInfos.isEmpty()) continue;
+
+        const unreliablePackets = getAllPacketsWhich(packetInfos, isUnreliable);
+        const packets = getAllPacketsWhich(packetInfos, isReliable);
         if (!unreliablePackets.isEmpty())
           sendUnreliableMessage.FireClient(player, ...unreliablePackets);
         if (!packets.isEmpty())
@@ -376,10 +384,6 @@ export class MessageEmitter<MessageData> extends Destroyable {
         (callback as ClientMessageCallback)(packet); // why doesn't it infer this?!?!?!
   }
 
-  private shouldBatch<K extends keyof MessageData>(message: K & BaseMessage): boolean {
-    return this.options.batchRemotes && !this.options.doNotBatch.has(message);
-  }
-
   private deserializeAndValidate(message: keyof MessageData & number, serializedPacket: SerializedPacket) {
     const serializer = this.getSerializer(message);
     const packet = serializer?.deserialize(serializedPacket);
@@ -390,9 +394,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   private getPacket<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind]): SerializedPacket {
     const serializer = this.getSerializer(message);
-    const messageBuf = buffer.create(1);
-    writeMessage(messageBuf, message);
-
+    const messageBuf = createMessageBuffer(message);
     if (serializer === undefined)
       return {
         messageBuf,
