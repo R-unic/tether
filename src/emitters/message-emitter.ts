@@ -1,10 +1,8 @@
 import { Modding } from "@flamework/core";
 import { Players } from "@rbxts/services";
 import { Trash } from "@rbxts/trash";
-import type { Serializer, SerializerMetadata } from "@rbxts/serio";
 import Destroyable from "@rbxts/destroyable";
 import Object from "@rbxts/object-utils";
-import createSerializer from "@rbxts/serio";
 import repr from "@rbxts/repr";
 
 import { DropRequest, MiddlewareProvider, type MiddlewareContext } from "../middleware";
@@ -21,8 +19,9 @@ import type {
 import { ServerEmitter } from "./server-emitter";
 import { ClientEmitter } from "./client-emitter";
 import { Warning } from "../logging";
-import { createMessageBuffer, readMessage, shouldBatch } from "../utility";
 import { Relayer } from "../relayer";
+import { Serdes } from "../serdes";
+import { readMessage } from "../utility";
 
 declare let setLuneContext: (ctx: "server" | "client" | "both") => void;
 setLuneContext ??= () => { };
@@ -50,13 +49,13 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
   /** @hidden */ declare public readonly trash: Trash;
   /** @hidden */ public readonly relayer = new Relayer(this);
+  /** @hidden */ public readonly serdes = new Serdes<MessageData>;
   /** @hidden */ public clientCallbacks = new Map<keyof MessageData, Set<ClientMessageCallback>>;
   /** @hidden */ public clientFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
   /** @hidden */ public serverCallbacks = new Map<keyof MessageData, Set<ServerMessageCallback>>;
   /** @hidden */ public serverFunctions = new Map<keyof MessageData, Set<(data: unknown) => void>>;
 
   private readonly guards = new Map<keyof MessageData, Guard>;
-  private serializers: Partial<Record<keyof MessageData, Serializer<MessageData[keyof MessageData]>>> = {};
 
   /** @metadata macro */
   public static create<MessageData>(
@@ -69,6 +68,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
       return emitter;
     }
 
+    // lore
     // https://discord.com/channels/476080952636997633/506983834877689856/1363938149486821577
     type SorryLittensy = Record<BaseMessage, MessageMetadata<Record<BaseMessage, unknown>, BaseMessage>>;
     for (const [kind, { guard, serializerMetadata }] of pairs(meta as SorryLittensy)) {
@@ -76,7 +76,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
       emitter.guards.set(numberKind, guard);
 
       if (serializerMetadata === undefined) continue;
-      emitter.addSerializer(numberKind, serializerMetadata as never);
+      emitter.serdes.addSerializer(numberKind, serializerMetadata as never);
     }
 
     return emitter;
@@ -91,7 +91,8 @@ export class MessageEmitter<MessageData> extends Destroyable {
       this.serverCallbacks = new Map;
       this.clientFunctions = new Map;
       this.clientCallbacks = new Map;
-      this.serializers = {};
+      this.serdes.serializers = {};
+      this.relayer.relayAll(); // empty all message queues
       setmetatable(this, undefined);
     });
   }
@@ -109,7 +110,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const ctx: MiddlewareContext<MessageData[Kind], Kind & BaseMessage> = {
       message,
       data: data!,
-      getRawData: () => this.serializePacket(message, data)
+      getRawData: () => this.serdes.serializePacket(message, data)
     };
 
     for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>()) {
@@ -151,7 +152,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const ctx: MiddlewareContext<MessageData[Kind], Kind & BaseMessage> = {
       message,
       data: data!,
-      getRawData: () => this.serializePacket(message, data)
+      getRawData: () => this.serdes.serializePacket(message, data)
     };
 
     for (const globalMiddleware of this.middleware.getServerGlobal<MessageData[Kind]>()) {
@@ -194,20 +195,6 @@ export class MessageEmitter<MessageData> extends Destroyable {
     }
   }
 
-  /** @hidden */
-  public serializePacket<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind]): SerializedPacket {
-    const serializer = this.getSerializer(message);
-    const messageBuf = createMessageBuffer(message);
-    if (serializer === undefined)
-      return {
-        messageBuf,
-        buf: buffer.create(0),
-        blobs: []
-      };
-
-    return { messageBuf, ...serializer.serialize(data) };
-  }
-
   private validateData(message: keyof MessageData & BaseMessage, data: unknown, requestDropReason = "Invalid data"): boolean {
     const guard = this.guards.get(message)!;
     const guardPassed = guard(data);
@@ -236,31 +223,17 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
     const packet = this.deserializeAndValidate(message, serializedPacket);
     for (const callback of callbacks)
-      if (isServer)
-        callback(player!, packet);
-      else
+      if (isServer) {
+        assert(player !== undefined);
+        callback(player, packet);
+      } else
         (callback as ClientMessageCallback)(packet); // why doesn't it infer this?!?!?!
   }
 
-  private deserializeAndValidate(message: keyof MessageData & number, serializedPacket: SerializedPacket) {
-    const serializer = this.getSerializer(message);
-    const packet = serializer?.deserialize(serializedPacket);
+  private deserializeAndValidate<K extends keyof MessageData>(message: K & BaseMessage, serializedPacket: SerializedPacket): MessageData[K] | undefined {
+    const packet = this.serdes.deserializePacket(message, serializedPacket);
     this.validateData(message, packet);
 
     return packet;
-  }
-
-  /** @metadata macro */
-  private addSerializer<Kind extends keyof MessageData>(message: Kind & BaseMessage, meta?: Modding.Many<SerializerMetadata<MessageData[Kind]>>): void {
-    this.serializers[message] = this.createMessageSerializer(meta) as never;
-  }
-
-  /** @metadata macro */
-  private createMessageSerializer<Kind extends keyof MessageData>(meta?: Modding.Many<SerializerMetadata<MessageData[Kind]>>): Serializer<MessageData[Kind]> {
-    return createSerializer<MessageData[Kind]>(meta);
-  }
-
-  private getSerializer<Kind extends keyof MessageData>(message: Kind & BaseMessage): Serializer<MessageData[Kind] | undefined> | undefined {
-    return this.serializers[message] as never;
   }
 }

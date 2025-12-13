@@ -115,7 +115,7 @@ export class Relayer<MessageData> {
     };
 
     for (const [player, message, data, unreliable] of this.clientQueue) {
-      const packet = this.emitter.serializePacket(message, data);
+      const packet = this.emitter.serdes.serializePacket(message, data);
       const info = { packet, unreliable };
       if (typeIs(player, "Instance"))
         addClientPacket(player, info);
@@ -153,7 +153,7 @@ export class Relayer<MessageData> {
       else
         [message, data, unreliable] = messageData as ServerQueuedMessageData<MessageData>;
 
-      const packet = this.emitter.serializePacket(message, data);
+      const packet = this.emitter.serdes.serializePacket(message, data);
       return { packet, unreliable };
     });
 
