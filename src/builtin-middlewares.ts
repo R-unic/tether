@@ -74,7 +74,7 @@ export namespace BuiltinMiddlewares {
    */
   export function debug<T>(schema?: Modding.Many<Any.Equals<T, unknown> extends 1 ? undefined : SerializerMetadata<T>>): SharedMiddleware<T> {
     return ({ message, data, getRawData }) => {
-      const { buf, blobs } = getRawData();
+      const { messageBuf, buf, blobs } = getRawData();
       const bufferSize = buf === undefined ? 0 : buffer.len(buf);
       const blobsSize = blobs === undefined ? 0 : blobs.size() * BLOB_SIZE;
       const schemaString = schema !== undefined
@@ -88,6 +88,7 @@ export namespace BuiltinMiddlewares {
         " - Message: ", tostring(message), "\n",
         " - Data: ", repr(data, { pretty: true }), "\n",
         " - Raw data:\n",
+        "   - Message Buffer: ", bufferToString(messageBuf), "\n",
         "   - Buffer: ", bufferToString(buf), "\n",
         "   - Blobs: ", repr(blobs, { pretty: false, robloxClassName: true }), "\n",
         " - Packet size: ", tostring(bufferSize + blobsSize), " bytes\n",

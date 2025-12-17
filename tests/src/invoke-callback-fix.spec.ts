@@ -20,7 +20,6 @@ class InvokeCallbackFixTest {
     let callbackExecuted = false;
     let requestData: number | undefined;
     let responseWasSent = false;
-
     messaging.server.setCallback(
       InvokeMessage.ClientToServer,
       InvokeMessage.ServerResponse,
@@ -51,9 +50,9 @@ class InvokeCallbackFixTest {
     print(`  - requestData: ${requestData}`);
     print(`  - responseWasSent: ${responseWasSent}`);
 
-    Assert.equal(true, callbackExecuted);
+    Assert.true(callbackExecuted);
     Assert.equal(25, requestData);
-    Assert.equal(true, responseWasSent);
+    Assert.true(responseWasSent);
 
     setLuneContext("server");
     print("\n=== END INVOKE CALLBACK FIX TEST ===\n");
@@ -98,7 +97,7 @@ class InvokeCallbackFixTest {
     print(`  - clientCallbackExecuted: ${clientCallbackExecuted}`);
     print(`  - clientRequestData: ${clientRequestData}`);
 
-    Assert.equal(true, clientCallbackExecuted);
+    Assert.true(clientCallbackExecuted);
     Assert.equal(50, clientRequestData);
 
     setLuneContext("server");

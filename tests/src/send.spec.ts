@@ -21,8 +21,9 @@ class MessageSendTest {
       Assert.undefined(blobs);
       Assert.equal(1, buffer.len(messageBuf));
       Assert.equal(1, buffer.len(buf));
-      Assert.equal(value - 1, --ctx.data);
+      Assert.equal(value, ctx.data--);
     }) as SharedMiddleware<TestMessageData[Message.ToServer]>;
+
     messaging.middleware.useServer(Message.ToServerWithMiddleware, middleware);
     Assert.doesNotThrow(() => messaging.server.emit(Message.ToServerWithMiddleware, value));
     messaging.middleware.deleteServer(Message.ToServerWithMiddleware, middleware);
@@ -40,6 +41,13 @@ class MessageSendTest {
   public sendsUnreliableToServer(): void {
     setLuneContext("client");
     Assert.doesNotThrow(() => messaging.server.emit(Message.ToServer, -420, true));
+    setLuneContext("server");
+  }
+
+  @Fact
+  public sendsEmptyPayloadToServer(): void {
+    setLuneContext("client");
+    Assert.doesNotThrow(() => messaging.server.emit(Message.NoPayload));
     setLuneContext("server");
   }
 

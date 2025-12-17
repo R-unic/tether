@@ -12,7 +12,7 @@ export function bufferToString(buf?: buffer): string {
       s.push(i < buffer.len(buf) - 1 ? ", " : "");
     }
 
-  s.push("}");
+  s.push(" }");
   return s.join("");
 }
 

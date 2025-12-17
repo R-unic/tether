@@ -1,4 +1,4 @@
-import { MessageEmitter } from "@rbxts/tether";
+import { BuiltinMiddlewares, MessageEmitter } from "@rbxts/tether";
 import type { u8, i16 } from "@rbxts/serio";
 
 export const messaging = MessageEmitter.create<TestMessageData>({ batchRemotes: false });
@@ -7,6 +7,7 @@ export const enum Message {
   ToServer,
   ToServerWithMiddleware,
   ToClient,
+  NoPayload
 }
 
 export const enum InvokeMessage {
@@ -25,6 +26,7 @@ export interface TestMessageData {
   [Message.ToServer]: i16;
   [Message.ToServerWithMiddleware]: u8;
   [Message.ToClient]: i16;
+  [Message.NoPayload]: undefined;
   [InvokeMessage.ClientToServer]: i16;
   [InvokeMessage.ServerResponse]: i16;
   [InvokeMessage.ServerToClient]: i16;

@@ -1,9 +1,7 @@
 import { Assert, Fact, Order } from "@rbxts/runit";
-import { RunService } from "@rbxts/services";
 
-import { Message, messaging, InvokeMessage } from "./utility";
+import { messaging, InvokeMessage } from "./utility";
 
-declare const localPlayer: Player;
 declare function setLuneContext(ctx: "server" | "client"): void;
 
 /**

@@ -1,5 +1,5 @@
 import { Assert, Fact, Order } from "@rbxts/runit";
-import { readMessage, writeMessage, createMessageBuffer } from "@rbxts/tether/utility";
+import { readMessage, createMessageBuffer } from "@rbxts/tether/utility";
 
 import { InvokeMessage } from "./utility";
 
