@@ -102,7 +102,7 @@ class MessageReceiveTest {
     const expectedValue = 69;
     const [_, data] = getCollectedMessage(
       collectedFromServer,
-      ([message, data]) => message === Message.ToClient
+      ([message, data]) => message === Message.ToClient && data === expectedValue
     );
 
     Assert.equal(expectedValue, data);
@@ -113,7 +113,7 @@ class MessageReceiveTest {
     const expectedValue = -420;
     const [_, data] = getCollectedMessage(
       collectedFromServer,
-      ([message, data]) => message === Message.ToClient
+      ([message, data]) => message === Message.ToClient && data === expectedValue
     );
 
     Assert.equal(expectedValue, data);
