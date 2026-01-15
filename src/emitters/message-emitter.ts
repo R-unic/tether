@@ -266,7 +266,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const functions = functionsMap.get(message);
     if (functions === undefined) return;
 
-    const data = this.deserializeAndValidate(message, serializedPacket);
+    const data = this.serdes.deserializePacket(message, serializedPacket);
     for (const callback of functions)
       this.executeClientCallback(callback, message, data); // not strictly client the type just fits
   }
@@ -276,7 +276,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const callbacks: Set<MessageCallback> | undefined = callbacksMap.get(message);
     if (callbacks === undefined) return;
 
-    const data = this.deserializeAndValidate(message, serializedPacket);
+    const data = this.serdes.deserializePacket(message, serializedPacket);
     for (const callback of callbacks)
       if (isServer) {
         assert(player !== undefined);
@@ -306,12 +306,5 @@ export class MessageEmitter<MessageData> extends Destroyable {
     if (dropRequest) return;
 
     callback(newData);
-  }
-
-  private deserializeAndValidate<K extends keyof MessageData>(message: K & BaseMessage, serializedPacket: SerializedPacket): MessageData[K] | undefined {
-    const data = this.serdes.deserializePacket(message, serializedPacket);
-    this.validateData(message, data);
-
-    return data;
   }
 }
