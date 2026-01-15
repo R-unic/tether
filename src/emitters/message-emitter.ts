@@ -200,9 +200,6 @@ export class MessageEmitter<MessageData> extends Destroyable {
     player: Player | Player[],
     data?: MessageData[Kind]
   ): [boolean, MessageData[Kind]] {
-    if (!this.validateData(message, data))
-      return [true, data!];
-
     const ctx: MiddlewareContext<MessageData[Kind], Kind & BaseMessage> = {
       message,
       data: data!,
@@ -210,10 +207,10 @@ export class MessageEmitter<MessageData> extends Destroyable {
     };
 
     for (const middleware of this.middleware.getServerReceive(message)) {
+      const result = middleware(player, ctx);
       if (!this.validateData(message, ctx.data, "Invalid data after server receive middleware"))
         return [true, ctx.data];
 
-      const result = middleware(player, ctx);
       if (result === DropRequest) { // TODO: fix this really stupid behavior since its not actually dropping the request
         this.middleware.notifyRequestDropped(message, "Server receive middleware");
         return [true, ctx.data];
@@ -230,9 +227,6 @@ export class MessageEmitter<MessageData> extends Destroyable {
     message: Kind & BaseMessage,
     data?: MessageData[Kind]
   ): [boolean, MessageData[Kind]] {
-    if (!this.validateData(message, data))
-      return [true, data!];
-
     const ctx: MiddlewareContext<MessageData[Kind], Kind & BaseMessage> = {
       message,
       data: data!,
@@ -240,10 +234,10 @@ export class MessageEmitter<MessageData> extends Destroyable {
     };
 
     for (const middleware of this.middleware.getClientReceive(message)) {
+      const result = middleware(ctx);
       if (!this.validateData(message, ctx.data, "Invalid data after client receive middleware"))
         return [true, ctx.data];
 
-      const result = middleware(ctx);
       if (result === DropRequest) { // TODO: fix this really stupid behavior since its not actually dropping the request
         this.middleware.notifyRequestDropped(message, "Client receive middleware");
         return [true, ctx.data];
