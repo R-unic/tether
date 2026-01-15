@@ -23,7 +23,7 @@ let sendMessage: RemoteEvent<MessageEvent>;
 }
 let sendUnreliableMessage: UnreliableRemoteEvent<MessageEvent>;
 {
-  const name = "unreliableMessage";
+  const name = "sendUnreliableMessage";
   const existing = ReplicatedStorage.FindFirstChild(name);
   const remote = (existing ?? new Instance("UnreliableRemoteEvent", ReplicatedStorage)) as UnreliableRemoteEvent<MessageEvent>;
   if (existing === undefined)

@@ -98,7 +98,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
   }
 
   /** @hidden */
-  public runClientMiddlewares<Kind extends keyof MessageData>(
+  public runClientSendMiddlewares<Kind extends keyof MessageData>(
     message: Kind & BaseMessage,
     data?: MessageData[Kind],
     player?: Player | Player[]
@@ -116,7 +116,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     for (const globalMiddleware of this.middleware.getClientGlobal<MessageData[Kind]>()) {
       const result = globalMiddleware(players, ctx);
       if (!this.validateData(message, ctx.data, "Invalid data after global client middleware"))
-        return [false, ctx.data];
+        return [true, ctx.data];
 
       if (result === DropRequest) {
         this.middleware.notifyRequestDropped(message, "Global client middleware");
@@ -127,7 +127,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
     for (const middleware of this.middleware.getClient(message)) {
       const result = middleware(players, ctx);
       if (!this.validateData(message, ctx.data, "Invalid data after client middleware"))
-        return [false, ctx.data];
+        return [true, ctx.data];
 
       if (result === DropRequest) {
         this.middleware.notifyRequestDropped(message, "Client middleware");
@@ -142,7 +142,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
   }
 
   /** @hidden */
-  public runServerMiddlewares<Kind extends keyof MessageData>(
+  public runServerSendMiddlewares<Kind extends keyof MessageData>(
     message: Kind & BaseMessage,
     data?: MessageData[Kind]
   ): [boolean, MessageData[Kind]] {
@@ -157,7 +157,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
     for (const globalMiddleware of this.middleware.getServerGlobal<MessageData[Kind]>()) {
       if (!this.validateData(message, ctx.data, "Invalid data after global server middleware"))
-        return [false, ctx.data];
+        return [true, ctx.data];
 
       const result = globalMiddleware(ctx);
       if (result === DropRequest) {
@@ -168,7 +168,7 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
     for (const middleware of this.middleware.getServer(message)) {
       if (!this.validateData(message, ctx.data, "Invalid data after server middleware"))
-        return [false, ctx.data];
+        return [true, ctx.data];
 
       const result = middleware(ctx);
       if (result === DropRequest) {
@@ -195,6 +195,67 @@ export class MessageEmitter<MessageData> extends Destroyable {
     }
   }
 
+  private runServerReceiveMiddlewares<Kind extends keyof MessageData>(
+    message: Kind & BaseMessage,
+    player: Player | Player[],
+    data?: MessageData[Kind]
+  ): [boolean, MessageData[Kind]] {
+    if (!this.validateData(message, data))
+      return [true, data!];
+
+    const ctx: MiddlewareContext<MessageData[Kind], Kind & BaseMessage> = {
+      message,
+      data: data!,
+      getRawData: () => this.serdes.serializePacket(message, data)
+    };
+
+    for (const middleware of this.middleware.getServerReceive(message)) {
+      if (!this.validateData(message, ctx.data, "Invalid data after server receive middleware"))
+        return [true, ctx.data];
+
+      const result = middleware(player, ctx);
+      if (result === DropRequest) { // TODO: fix this really stupid behavior since its not actually dropping the request
+        this.middleware.notifyRequestDropped(message, "Server receive middleware");
+        return [true, ctx.data];
+      }
+    }
+
+    if (!this.validateData(message, ctx.data))
+      return [true, ctx.data];
+
+    return [false, ctx.data];
+  }
+
+  private runClientReceiveMiddlewares<Kind extends keyof MessageData>(
+    message: Kind & BaseMessage,
+    data?: MessageData[Kind]
+  ): [boolean, MessageData[Kind]] {
+    if (!this.validateData(message, data))
+      return [true, data!];
+
+    const ctx: MiddlewareContext<MessageData[Kind], Kind & BaseMessage> = {
+      message,
+      data: data!,
+      getRawData: () => this.serdes.serializePacket(message, data)
+    };
+
+    for (const middleware of this.middleware.getClientReceive(message)) {
+      if (!this.validateData(message, ctx.data, "Invalid data after client receive middleware"))
+        return [true, ctx.data];
+
+      const result = middleware(ctx);
+      if (result === DropRequest) { // TODO: fix this really stupid behavior since its not actually dropping the request
+        this.middleware.notifyRequestDropped(message, "Client receive middleware");
+        return [true, ctx.data];
+      }
+    }
+
+    if (!this.validateData(message, ctx.data))
+      return [true, ctx.data];
+
+    return [false, ctx.data];
+  }
+
   private validateData(message: keyof MessageData & BaseMessage, data: unknown, requestDropReason = "Invalid data"): boolean {
     const guard = this.guards.get(message)!;
     const guardPassed = guard(data);
@@ -211,9 +272,9 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const functions = functionsMap.get(message);
     if (functions === undefined) return;
 
-    const packet = this.deserializeAndValidate(message, serializedPacket);
+    const data = this.deserializeAndValidate(message, serializedPacket);
     for (const callback of functions)
-      callback(packet);
+      this.executeClientCallback(callback, message, data); // not strictly client the type just fits
   }
 
   private executeEventCallbacks(isServer: boolean, message: keyof MessageData & BaseMessage, serializedPacket: SerializedPacket, player?: Player): void {
@@ -221,19 +282,42 @@ export class MessageEmitter<MessageData> extends Destroyable {
     const callbacks: Set<MessageCallback> | undefined = callbacksMap.get(message);
     if (callbacks === undefined) return;
 
-    const packet = this.deserializeAndValidate(message, serializedPacket);
+    const data = this.deserializeAndValidate(message, serializedPacket);
     for (const callback of callbacks)
       if (isServer) {
         assert(player !== undefined);
-        callback(player, packet);
+        this.executeServerCallback(callback, player, message, data);
       } else
-        (callback as ClientMessageCallback)(packet); // why doesn't it infer this?!?!?!
+        this.executeClientCallback(callback as ClientMessageCallback, message, data);
+  }
+
+  private executeServerCallback<Kind extends keyof MessageData>(
+    callback: ServerMessageCallback,
+    player: Player,
+    message: Kind & BaseMessage,
+    data?: MessageData[Kind]
+  ): void {
+    const [dropRequest, newData] = this.runServerReceiveMiddlewares(message, player, data);
+    if (dropRequest) return;
+
+    callback(player, newData);
+  }
+
+  private executeClientCallback<Kind extends keyof MessageData>(
+    callback: ClientMessageCallback,
+    message: Kind & BaseMessage,
+    data?: MessageData[Kind]
+  ): void {
+    const [dropRequest, newData] = this.runClientReceiveMiddlewares(message, data);
+    if (dropRequest) return;
+
+    callback(newData);
   }
 
   private deserializeAndValidate<K extends keyof MessageData>(message: K & BaseMessage, serializedPacket: SerializedPacket): MessageData[K] | undefined {
-    const packet = this.serdes.deserializePacket(message, serializedPacket);
-    this.validateData(message, packet);
+    const data = this.serdes.deserializePacket(message, serializedPacket);
+    this.validateData(message, data);
 
-    return packet;
+    return data;
   }
 }

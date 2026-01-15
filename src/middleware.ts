@@ -26,10 +26,18 @@ type RequestDropCallback = (message: BaseMessage, reason?: string) => void;
 export class MiddlewareProvider<MessageData> {
   private readonly clientGlobalMiddlewares: Middleware[] = [];
   private readonly serverGlobalMiddlewares: Middleware[] = [];
-  private readonly clientMiddlewares: Record<BaseMessage, Middleware[]> = {};
-  private readonly serverMiddlewares: Record<BaseMessage, Middleware[]> = {};
+  private readonly clientSendMiddlewares: Record<BaseMessage, Middleware[]> = {};
+  private readonly serverSendMiddlewares: Record<BaseMessage, Middleware[]> = {};
+  private readonly serverReceiveMiddlewares: Record<BaseMessage, Middleware[]> = {};
+  private readonly clientReceiveMiddlewares: Record<BaseMessage, Middleware[]> = {};
   private readonly requestDroppedCallbacks = new Set<RequestDropCallback>;
 
+  /**
+   * Registers a callback to be called whenever a message is dropped.
+   * The callback will receive the message that was dropped and an optional reason string.
+   *
+   * @returns A function that can be called to unregister the callback.
+   */
   public onRequestDropped(callback: RequestDropCallback): () => void {
     this.requestDroppedCallbacks.add(callback);
     return () => this.requestDroppedCallbacks.delete(callback);
@@ -43,18 +51,12 @@ export class MiddlewareProvider<MessageData> {
 
   /** @hidden */
   public getClient<Kind extends keyof MessageData>(message: Kind & BaseMessage): ClientMiddleware<MessageData[Kind]>[] {
-    if (this.clientMiddlewares[message] === undefined)
-      this.clientMiddlewares[message] = [];
-
-    return this.clientMiddlewares[message] as ClientMiddleware<MessageData[Kind]>[];
+    return (this.clientSendMiddlewares[message] ??= []) as never;
   }
 
   /** @hidden */
   public getServer<Kind extends keyof MessageData>(message: Kind & BaseMessage): ServerMiddleware<MessageData[Kind]>[] {
-    if (this.serverMiddlewares[message] === undefined)
-      this.serverMiddlewares[message] = [];
-
-    return this.serverMiddlewares[message] as ServerMiddleware<MessageData[Kind]>[];
+    return (this.serverSendMiddlewares[message] ??= []) as never;
   }
 
   /** @hidden */
@@ -65,6 +67,16 @@ export class MiddlewareProvider<MessageData> {
   /** @hidden */
   public getServerGlobal<Data>(): ServerMiddleware<Data>[] {
     return this.serverGlobalMiddlewares as ServerMiddleware<Data>[];
+  }
+
+  /** @hidden */
+  public getClientReceive<Kind extends keyof MessageData>(message: Kind & BaseMessage): ServerMiddleware<MessageData[Kind]>[] {
+    return (this.clientReceiveMiddlewares[message] ??= []) as never;
+  }
+
+  /** @hidden */
+  public getServerReceive<Kind extends keyof MessageData>(message: Kind & BaseMessage): ClientMiddleware<MessageData[Kind]>[] {
+    return (this.serverReceiveMiddlewares[message] ??= []) as never;
   }
 
   public useClient<Kind extends keyof MessageData>(

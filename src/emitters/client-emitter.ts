@@ -34,7 +34,7 @@ export class ClientEmitter<MessageData> extends ContextualEmitter<MessageData> {
       error(Error.NoClientToClient);
 
     task.spawn(() => {
-      const [dropRequest, newData] = this.master.runClientMiddlewares(message, data, player);
+      const [dropRequest, newData] = this.master.runClientSendMiddlewares(message, data, player);
       if (dropRequest) return;
 
       this.master.relayer.queueMessage(this.context, message, [player, message, newData, unreliable]);
@@ -66,7 +66,7 @@ export class ClientEmitter<MessageData> extends ContextualEmitter<MessageData> {
       error(Error.NoClientToAllClients);
 
     task.spawn(() => {
-      const [dropRequest, newData] = this.master.runClientMiddlewares(message, data);
+      const [dropRequest, newData] = this.master.runClientSendMiddlewares(message, data);
       if (dropRequest) return;
 
       this.master.relayer.queueMessage(true, message, [message, newData, unreliable]);

@@ -33,7 +33,7 @@ export class ServerEmitter<MessageData> extends ContextualEmitter<MessageData> {
       error(Error.NoServerToServer);
 
     task.spawn(() => {
-      const [dropRequest, newData] = this.master.runServerMiddlewares(message, data);
+      const [dropRequest, newData] = this.master.runServerSendMiddlewares(message, data);
       if (dropRequest) return;
 
       this.master.relayer.queueMessage(this.context, message, [message, newData, unreliable]);
