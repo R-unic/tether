@@ -86,7 +86,7 @@ export class MiddlewareProvider<MessageData> {
   ): this {
     const messageMiddleware = this.getClient(message);
     if (typeIs(middlewares, "function"))
-      messageMiddleware.insert(order ?? messageMiddleware.size() - 1, middlewares);
+      messageMiddleware.insert(order ?? math.max(messageMiddleware.size() - 1, 0), middlewares);
     else
       for (const middleware of middlewares)
         this.useClient(message, middleware, order);
@@ -101,7 +101,7 @@ export class MiddlewareProvider<MessageData> {
   ): this {
     const messageMiddleware = this.getServer(message);
     if (typeIs(middlewares, "function"))
-      messageMiddleware.insert(order ?? messageMiddleware.size() - 1, middlewares);
+      messageMiddleware.insert(order ?? math.max(messageMiddleware.size() - 1, 0), middlewares);
     else
       for (const middleware of middlewares)
         this.useServer(message, middleware, order);
@@ -129,7 +129,7 @@ export class MiddlewareProvider<MessageData> {
   ): this {
     const messageMiddleware = this.getClientReceive(message);
     if (typeIs(middlewares, "function"))
-      messageMiddleware.insert(order ?? messageMiddleware.size() - 1, middlewares);
+      messageMiddleware.insert(order ?? math.max(messageMiddleware.size() - 1, 0), middlewares);
     else
       for (const middleware of middlewares)
         this.useClientReceive(message, middleware, order);
@@ -144,7 +144,7 @@ export class MiddlewareProvider<MessageData> {
   ): this {
     const messageMiddleware = this.getServerReceive(message);
     if (typeIs(middlewares, "function"))
-      messageMiddleware.insert(order ?? messageMiddleware.size() - 1, middlewares);
+      messageMiddleware.insert(order ?? math.max(messageMiddleware.size() - 1, 0), middlewares);
     else
       for (const middleware of middlewares)
         this.useServerReceive(message, middleware, order);
@@ -171,7 +171,7 @@ export class MiddlewareProvider<MessageData> {
   ): this {
     const globalMiddleware = this.getClientGlobal();
     if (typeIs(middlewares, "function"))
-      globalMiddleware.insert(order ?? globalMiddleware.size() - 1, middlewares);
+      globalMiddleware.insert(order ?? math.max(globalMiddleware.size() - 1, 0), middlewares);
     else
       for (const middleware of middlewares)
         this.useClientGlobal(middleware, order);
@@ -185,7 +185,7 @@ export class MiddlewareProvider<MessageData> {
   ): this {
     const globalMiddleware = this.getServerGlobal();
     if (typeIs(middlewares, "function"))
-      globalMiddleware.insert(order ?? globalMiddleware.size() - 1, middlewares);
+      globalMiddleware.insert(order ?? math.max(globalMiddleware.size() - 1, 0), middlewares);
     else
       for (const middleware of middlewares)
         this.useServerGlobal(middleware, order);
