@@ -1,5 +1,5 @@
 import type { Modding } from "@flamework/core";
-import type { SerializerMetadata, SerializedData, SchemaGuard } from "@rbxts/serio";
+import type { SerializerMetadata, SerializedData, StripMeta } from "@rbxts/serio";
 
 export type MessageCallback<T = unknown> = ServerMessageCallback<T> | ClientMessageCallback<T>;
 export type FunctionMessageCallback<T = unknown, R = unknown> = ServerFunctionMessageCallback<T, R> | ClientFunctionMessageCallback<T, R>;
@@ -21,7 +21,7 @@ export interface SerializedPacket extends SerializedData {
 export type MessageEvent = (...packets: SerializedPacket[]) => void;
 
 export interface MessageMetadata<MessageData, Kind extends keyof MessageData> {
-  readonly guard: SchemaGuard<MessageData[Kind]>;
+  readonly guard: Modding.Generic<StripMeta<MessageData[Kind]>, "guard">;
   readonly serializerMetadata: MessageData[Kind] extends undefined
   ? undefined
   : Modding.Many<SerializerMetadata<MessageData[Kind]>>;
