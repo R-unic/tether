@@ -8,7 +8,7 @@ declare function setLuneContext(ctx: "server" | "client"): void;
 function waitForCollected(collection: unknown[]): void {
   let i = 0;
   while (collection.size() === 0 && i < 1)
-    i += task.wait();
+    i += task.wait(0.2);
 }
 
 function getCollectedMessage<T extends defined>(collection: T[], predicate: (data: T) => boolean): T {
@@ -47,7 +47,7 @@ class MessageReceiveTest {
     const expectedValue = 69;
     const collected = getCollectedMessage(
       collectedFromClient,
-      ([message, _, data]) => message === Message.ToServerWithMiddleware
+      ([message, _, data]) => message === Message.ToServerWithMiddleware && data === expectedValue
     );
 
     const [_, player, data] = collected!;
@@ -75,7 +75,7 @@ class MessageReceiveTest {
     const expectedValue = -420;
     const collected = getCollectedMessage(
       collectedFromClient,
-      ([message, _, data]) => message === Message.ToServer
+      ([message, _, data]) => message === Message.ToServer && data === expectedValue
     );
 
     const [_, player, data] = collected!;
