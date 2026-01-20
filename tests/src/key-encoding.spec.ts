@@ -1,7 +1,7 @@
 import { Assert, Fact, Order } from "@rbxts/runit";
 import { readMessage, createMessageBuffer } from "@rbxts/tether/utility";
 
-import { InvokeMessage } from "./utility";
+import { TestMessage } from "./utility";
 
 declare function setLuneContext(ctx: "server" | "client"): void;
 
@@ -38,14 +38,14 @@ class KeyEncodingTest {
     setLuneContext("server");
 
     // Test normal key (< 256)
-    const normalKeyBuf = createMessageBuffer(InvokeMessage.ClientToServer);
+    const normalKeyBuf = createMessageBuffer(TestMessage.ClientToServer);
     const normalKeyRead = readMessage(normalKeyBuf);
-    Assert.equal(InvokeMessage.ClientToServer, normalKeyRead);
+    Assert.equal(TestMessage.ClientToServer, normalKeyRead);
 
     // Test high key (250) - still within u8 range
-    const highKeyBuf = createMessageBuffer(InvokeMessage.HighKey);
+    const highKeyBuf = createMessageBuffer(TestMessage.HighKey);
     const highKeyRead = readMessage(highKeyBuf);
-    Assert.equal(InvokeMessage.HighKey, highKeyRead);
+    Assert.equal(TestMessage.HighKey, highKeyRead);
 
     // Test maximum valid key (255)
     const maxKeyBuf = createMessageBuffer(255);

@@ -1,38 +1,35 @@
-import { BuiltinMiddlewares, MessageEmitter } from "@rbxts/tether";
+import { MessageEmitter } from "@rbxts/tether";
 import type { u8, i16 } from "@rbxts/serio";
 
 export const messaging = MessageEmitter.create<TestMessageData>({ batchRemotes: false });
 
-export const enum Message {
+export const enum TestMessage {
   ToServer,
   ToServerWithMiddleware,
   ToClient,
-  NoPayload
-}
-
-export const enum InvokeMessage {
-  ClientToServer = 10,
-  ServerResponse = 11,
-  ServerToClient = 12,
-  ClientResponse = 13,
-  ClientToServerUnreliable = 14,
-  ServerResponseUnreliable = 15,
+  NoPayload,
+  ClientToServer,
+  ServerResponse,
+  ServerToClient,
+  ClientResponse,
+  ClientToServerUnreliable,
+  ServerResponseUnreliable,
   // Test message with high key value near u8 limit
   HighKey = 250,
   HighKeyResponse = 251,
 }
 
 export interface TestMessageData {
-  [Message.ToServer]: i16;
-  [Message.ToServerWithMiddleware]: u8;
-  [Message.ToClient]: i16;
-  [Message.NoPayload]: undefined;
-  [InvokeMessage.ClientToServer]: i16;
-  [InvokeMessage.ServerResponse]: i16;
-  [InvokeMessage.ServerToClient]: i16;
-  [InvokeMessage.ClientResponse]: i16;
-  [InvokeMessage.ClientToServerUnreliable]: i16;
-  [InvokeMessage.ServerResponseUnreliable]: i16;
-  [InvokeMessage.HighKey]: i16;
-  [InvokeMessage.HighKeyResponse]: i16;
+  [TestMessage.ToServer]: i16;
+  [TestMessage.ToServerWithMiddleware]: u8;
+  [TestMessage.ToClient]: i16;
+  [TestMessage.NoPayload]: undefined;
+  [TestMessage.ClientToServer]: i16;
+  [TestMessage.ServerResponse]: i16;
+  [TestMessage.ServerToClient]: i16;
+  [TestMessage.ClientResponse]: i16;
+  [TestMessage.ClientToServerUnreliable]: i16;
+  [TestMessage.ServerResponseUnreliable]: i16;
+  [TestMessage.HighKey]: i16;
+  [TestMessage.HighKeyResponse]: i16;
 }

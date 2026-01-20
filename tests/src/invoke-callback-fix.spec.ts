@@ -1,6 +1,6 @@
 import { Assert, Fact, Order } from "@rbxts/runit";
 
-import { InvokeMessage, messaging } from "./utility";
+import { TestMessage, messaging } from "./utility";
 
 declare const localPlayer: Player;
 declare function setLuneContext(ctx: "server" | "client" | "both"): void;
@@ -21,8 +21,8 @@ class InvokeCallbackFixTest {
     let requestData: number | undefined;
     let responseWasSent = false;
     messaging.server.setCallback(
-      InvokeMessage.ClientToServer,
-      InvokeMessage.ServerResponse,
+      TestMessage.ClientToServer,
+      TestMessage.ServerResponse,
       (_, data) => {
         print(`[SERVER CALLBACK] Received request: ${data}`);
         callbackExecuted = true;
@@ -34,7 +34,7 @@ class InvokeCallbackFixTest {
 
     setLuneContext("client");
     print("[CLIENT] Emitting request to server");
-    messaging.server.invoke(InvokeMessage.ClientToServer, InvokeMessage.ServerResponse, 25);
+    messaging.server.invoke(TestMessage.ClientToServer, TestMessage.ServerResponse, 25);
 
     print("[CLIENT] Waiting for server callback");
     for (let i = 0; i < 50; i++) {
@@ -69,8 +69,8 @@ class InvokeCallbackFixTest {
     let clientRequestData: number | undefined;
 
     messaging.client.setCallback(
-      InvokeMessage.ServerToClient,
-      InvokeMessage.ClientResponse,
+      TestMessage.ServerToClient,
+      TestMessage.ClientResponse,
       data => {
         print(`[CLIENT CALLBACK] Received request: ${data}`);
         clientCallbackExecuted = true;
@@ -82,7 +82,7 @@ class InvokeCallbackFixTest {
     setLuneContext("server");
     print("[SERVER] Emitting request to client");
     // Note: we need a localPlayer instance but for now just test registration
-    messaging.client.invoke(InvokeMessage.ServerToClient, InvokeMessage.ClientResponse, localPlayer, 50);
+    messaging.client.invoke(TestMessage.ServerToClient, TestMessage.ClientResponse, localPlayer, 50);
 
     print("[SERVER] Waiting for client callback");
     for (let i = 0; i < 50; i++) {

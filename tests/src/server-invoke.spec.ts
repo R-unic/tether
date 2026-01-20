@@ -1,6 +1,6 @@
 import { Assert, Fact, Order } from "@rbxts/runit";
 
-import { InvokeMessage, messaging } from "./utility";
+import { TestMessage, messaging } from "./utility";
 
 declare function setLuneContext(ctx: "server" | "client"): void;
 
@@ -45,8 +45,8 @@ class ServerInvokeTest {
     let callbackReceivedData: number | undefined;
 
     messaging.server.setCallback(
-      InvokeMessage.ClientToServer,
-      InvokeMessage.ServerResponse,
+      TestMessage.ClientToServer,
+      TestMessage.ServerResponse,
       (player, data) => {
         print(`[SERVER CALLBACK] Received: ${data}`);
         callbackCalled = true;
@@ -57,7 +57,7 @@ class ServerInvokeTest {
 
     setLuneContext("client");
     print("[CLIENT] Emitting to server");
-    messaging.server.emit(InvokeMessage.ClientToServer, 7);
+    messaging.server.emit(TestMessage.ClientToServer, 7);
 
     for (let i = 0; i < 30; i++) {
       task.wait(0.01);

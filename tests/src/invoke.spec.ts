@@ -1,6 +1,6 @@
 import { Assert, Fact, Order } from "@rbxts/runit";
 
-import { messaging, InvokeMessage } from "./utility";
+import { messaging, TestMessage } from "./utility";
 
 declare function setLuneContext(ctx: "server" | "client"): void;
 
@@ -15,12 +15,12 @@ class InvokeTest {
     // First, test that basic messaging works
     setLuneContext("server");
     let receivedValue: number | undefined;
-    messaging.server.on(InvokeMessage.ClientToServer, (player, data) => {
+    messaging.server.on(TestMessage.ClientToServer, (player, data) => {
       receivedValue = data;
     });
 
     setLuneContext("client");
-    messaging.server.emit(InvokeMessage.ClientToServer, 42);
+    messaging.server.emit(TestMessage.ClientToServer, 42);
 
     // Give the message time to propagate
     for (let i = 0; i < 10; i++) {
@@ -40,12 +40,12 @@ class InvokeTest {
     setLuneContext("server");
 
     let receivedKey: number | undefined;
-    messaging.server.on(InvokeMessage.HighKey, () => {
-      receivedKey = InvokeMessage.HighKey;
+    messaging.server.on(TestMessage.HighKey, () => {
+      receivedKey = TestMessage.HighKey;
     });
 
     setLuneContext("client");
-    messaging.server.emit(InvokeMessage.HighKey, 123);
+    messaging.server.emit(TestMessage.HighKey, 123);
 
     // Wait for the message to be received
     for (let i = 0; i < 10; i++) {
@@ -54,7 +54,7 @@ class InvokeTest {
     }
 
     Assert.defined(receivedKey);
-    Assert.equal(InvokeMessage.HighKey, receivedKey);
+    Assert.equal(TestMessage.HighKey, receivedKey);
     setLuneContext("server");
   }
 }

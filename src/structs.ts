@@ -19,15 +19,13 @@ export interface SerializedPacket extends SerializedData {
 }
 
 export type MessageEvent = (...packets: SerializedPacket[]) => void;
+export type Guard<T = unknown> = (value: unknown) => value is T;
 
-export interface MessageMetadata<MessageData, Kind extends keyof MessageData> {
-  readonly guard: Modding.Generic<StripMeta<MessageData[Kind]>, "guard">;
-  readonly serializerMetadata: MessageData[Kind] extends undefined
-  ? undefined
-  : Modding.Many<SerializerMetadata<MessageData[Kind]>>;
+export interface MessageMetadata<T> {
+  readonly guard: Modding.Generic<StripMeta<T>, "guard">;
+  readonly serializerMetadata: T extends undefined ? undefined : SerializerMetadata<T>;
 }
 
-export type Guard<T = unknown> = (value: unknown) => value is T;
 export type MessageEmitterMetadata<MessageData> = {
-  readonly [Kind in keyof MessageData]: MessageMetadata<MessageData, Kind>;
+  readonly [K in keyof MessageData as K]: MessageMetadata<MessageData[K]>;
 };

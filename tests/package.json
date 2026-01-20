@@ -21,8 +21,8 @@
   "dependencies": {
     "@rbxts/destroyable": "^1.0.9",
     "@rbxts/flamework-meta-utils": "^1.0.7",
-    "@rbxts/runit": "^1.4.5",
-    "@rbxts/serio": "^1.1.0",
+    "@rbxts/runit": "^1.4.6",
+    "@rbxts/serio": "^1.1.3",
     "@rbxts/tether": "file:../out"
   }
 }
