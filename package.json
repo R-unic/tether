@@ -1,6 +1,6 @@
 {
   "name": "@rbxts/tether",
-  "version": "1.4.12",
+  "version": "1.4.13",
   "main": "out/init.luau",
   "scripts": {
     "setup-rokit": "rokit trust lune-org/lune && rokit trust rojo-rbx/rojo && rokit install",
@@ -44,7 +44,7 @@
     "@rbxts/flamework-meta-utils": "^1.0.7",
     "@rbxts/object-utils": "^1.0.4",
     "@rbxts/repr": "^1.0.3",
-    "@rbxts/serio": "^1.2.0",
+    "@rbxts/serio": "^1.2.1",
     "@rbxts/services": "^1.6.0",
     "@rbxts/trash": "^1.0.8"
   }
