@@ -22,6 +22,7 @@ import { Warning } from "../logging";
 import { Relayer } from "../relayer";
 import { Serdes } from "../serdes";
 import { readMessage } from "../utility";
+import { SerializerMetadata } from "@rbxts/serio";
 
 declare let setLuneContext: (ctx: "server" | "client" | "both") => void;
 setLuneContext ??= () => { };
@@ -193,6 +194,14 @@ export class MessageEmitter<MessageData> extends Destroyable {
       this.executeEventCallbacks(isServer, message, packet, player);
       this.executeFunctions(isServer, message, packet);
     }
+  }
+
+  /**
+   * Note: Will only work for literal message types, where `MessageData[Kind]` can be exactly inferred
+   * @metadata macro
+   */
+  public getSchema<Kind extends keyof MessageData>(message: Kind & BaseMessage, meta?: Modding.Many<SerializerMetadata<MessageData[Kind]>>): SerializerMetadata<MessageData[Kind]> {
+    return this.serdes.getSchema(message, meta);
   }
 
   private runServerReceiveMiddlewares<Kind extends keyof MessageData>(

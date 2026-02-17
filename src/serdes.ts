@@ -8,6 +8,15 @@ import type { BaseMessage, SerializedPacket } from "./structs";
 export class Serdes<MessageData> {
   public serializers: Partial<Record<keyof MessageData, Serializer<MessageData[keyof MessageData]>>> = {};
 
+  /** @metadata macro */
+  public getSchema<Kind extends keyof MessageData>(message: Kind & BaseMessage, meta?: Modding.Many<SerializerMetadata<MessageData[Kind]>>): SerializerMetadata<MessageData[Kind]> {
+    const serializer = this.getSerializer(message);
+    if (serializer === undefined)
+      throw `[@rbxts/tether]: Cannot get schema metadata for message '${message}', serializer not found`;
+
+    return serializer.getSchema(meta);
+  }
+
   public serializePacket<Kind extends keyof MessageData>(message: Kind & BaseMessage, data?: MessageData[Kind]): SerializedPacket {
     const serializer = this.getSerializer(message);
     const messageBuf = createMessageBuffer(message);
@@ -18,7 +27,7 @@ export class Serdes<MessageData> {
         blobs: []
       };
 
-    return { messageBuf, ...serializer.serialize(data) };
+    return { messageBuf, ...serializer.serialize(data as never) };
   }
 
   public deserializePacket<K extends keyof MessageData>(message: K & BaseMessage, serializedPacket: SerializedPacket): MessageData[K] | undefined {
@@ -36,7 +45,7 @@ export class Serdes<MessageData> {
     return createSerializer<MessageData[Kind]>(meta);
   }
 
-  public getSerializer<Kind extends keyof MessageData>(message: Kind & BaseMessage): Serializer<MessageData[Kind] | undefined> | undefined {
+  public getSerializer<Kind extends keyof MessageData>(message: Kind & BaseMessage): Serializer<MessageData[Kind]> | undefined {
     return this.serializers[message] as never;
   }
 }
