@@ -71,13 +71,13 @@ export class MessageEmitter<MessageData> extends Destroyable {
 
     // lore
     // https://discord.com/channels/476080952636997633/506983834877689856/1363938149486821577
-    type SorryLittensy = Record<BaseMessage, MessageMetadata<unknown>>;
+    type SorryLittensy = Record<BaseMessage, MessageMetadata<never>>;
     for (const [kind, { guard, serializerMetadata }] of pairs(meta as SorryLittensy)) {
       const numberKind = tonumber(kind) as keyof MessageData & BaseMessage;
       emitter.guards.set(numberKind, guard);
 
       if (serializerMetadata === undefined) continue;
-      emitter.serdes.addSerializer(numberKind, serializerMetadata as never);
+      emitter.serdes.addSerializer(numberKind, serializerMetadata);
     }
 
     return emitter;

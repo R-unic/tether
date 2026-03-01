@@ -64,6 +64,24 @@ class MessageSendTest {
     Assert.doesNotThrow(() => messaging.client.emit(localPlayer, TestMessage.ToClient, -420, true));
     setLuneContext("client");
   }
+
+  @Fact
+  public throwsForInvalidData(): void {
+    setLuneContext("server");
+    let dropped = false;
+    messaging.middleware.onRequestDropped((message, reason) => {
+      dropped = true;
+      Assert.equal(TestMessage.ToClient, message);
+      Assert.equal("Invalid data", reason);
+    });
+    Assert.doesNotThrow(() => messaging.client.emit(localPlayer, TestMessage.ToClient, "abc" as never));
+
+    while (!dropped) {
+      task.wait();
+    }
+    Assert.true(dropped);
+    setLuneContext("client");
+  }
 }
 
 export = MessageSendTest;
